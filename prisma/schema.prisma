@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String     @id @default(auto()) @map("_id") @db.ObjectId
+  email           String     @unique
+  hashedPassword  String?
+  bookings        Booking[]
+  business        Business?  @relation("UserBusiness") // no fields/references here
+  createdAt       DateTime   @default(now())
+}
+
+model Business {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  profilePic   String?
+  ownerId      String     @unique @db.ObjectId
+  owner        User       @relation("UserBusiness", fields: [ownerId], references: [id])
+  services     Service[]
+  team         TeamMember[]
+  reviews      Review[]
+  openingHours OpeningHour[]
+  createdAt    DateTime   @default(now())
+}
+
+
+
+model Service {
+  id            String              @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  duration      Int
+  price         Float?
+  businessId    String              @db.ObjectId
+  business      Business            @relation(fields: [businessId], references: [id])
+  bookings      Booking[]
+  teamLinks     ServiceTeamMember[] // <-- explicit relation
+}
+
+model TeamMember {
+  id            String              @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String?
+  businessId    String              @db.ObjectId
+  business      Business            @relation(fields: [businessId], references: [id])
+  bookings      Booking[]
+  serviceLinks  ServiceTeamMember[] // <-- explicit relation
+}
+
+model ServiceTeamMember {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  serviceId    String      @db.ObjectId
+  teamMemberId String      @db.ObjectId
+
+  service      Service     @relation(fields: [serviceId], references: [id])
+  teamMember   TeamMember  @relation(fields: [teamMemberId], references: [id])
+}
+
+model Booking {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String       @db.ObjectId
+  user          User         @relation(fields: [userId], references: [id])
+  serviceId     String       @db.ObjectId
+  service       Service      @relation(fields: [serviceId], references: [id])
+  teamMemberId  String?      @db.ObjectId
+  teamMember    TeamMember?  @relation(fields: [teamMemberId], references: [id])
+  date          DateTime
+  note          String?
+  createdAt     DateTime     @default(now())
+}
+
+model Review {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  rating     Int
+  comment    String?
+  businessId String      @db.ObjectId
+  business   Business    @relation(fields: [businessId], references: [id])
+  createdAt  DateTime    @default(now())
+}
+
+model OpeningHour {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  dayOfWeek  Int
+  openTime   String
+  closeTime  String
+  businessId String      @db.ObjectId
+  business   Business    @relation(fields: [businessId], references: [id])
+}
