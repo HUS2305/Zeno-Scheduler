@@ -23,6 +23,7 @@ model Business {
   ownerId      String     @unique @db.ObjectId
   owner        User       @relation("UserBusiness", fields: [ownerId], references: [id])
   services     Service[]
+  categories   Category[]
   team         TeamMember[]
   reviews      Review[]
   openingHours OpeningHour[]
@@ -38,6 +39,8 @@ model Service {
   price         Float?
   businessId    String              @db.ObjectId
   business      Business            @relation(fields: [businessId], references: [id])
+  categoryId    String?             @db.ObjectId
+  category      Category?           @relation(fields: [categoryId], references: [id])
   bookings      Booking[]
   teamLinks     ServiceTeamMember[] // <-- explicit relation
 }
@@ -90,4 +93,13 @@ model OpeningHour {
   closeTime  String
   businessId String      @db.ObjectId
   business   Business    @relation(fields: [businessId], references: [id])
+}
+
+model Category {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  businessId String    @db.ObjectId
+  business   Business  @relation(fields: [businessId], references: [id])
+  services   Service[]
+  createdAt  DateTime  @default(now())
 }
