@@ -26,16 +26,16 @@ export async function GET() {
       where: { businessId: business.id },
       include: {
         _count: {
-          select: { services: true }
+          select: { serviceLinks: true }
         }
       }
     });
 
     // Transform the data to match the expected format
-    const categoriesWithCount = categories.map(category => ({
+    const categoriesWithCount = categories.map((category: any) => ({
       id: category.id,
       name: category.name,
-      serviceCount: category._count.services
+      serviceCount: category._count.serviceLinks
     }));
 
     return NextResponse.json(categoriesWithCount);
@@ -86,6 +86,63 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const categoryId = searchParams.get('id');
+    const { name } = await request.json();
+
+    if (!categoryId) {
+      return NextResponse.json({ error: "Category ID is required" }, { status: 400 });
+    }
+
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: "Category name is required" }, { status: 400 });
+    }
+
+    // Get the business for the current user
+    const business = await prisma.business.findFirst({
+      where: { ownerId: session.user.id },
+    });
+
+    if (!business) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+
+    // Verify the category belongs to this business
+    const existingCategory = await prisma.category.findFirst({
+      where: {
+        id: categoryId,
+        businessId: business.id,
+      },
+    });
+
+    if (!existingCategory) {
+      return NextResponse.json({ error: "Category not found" }, { status: 404 });
+    }
+
+    // Update the category
+    const updatedCategory = await prisma.category.update({
+      where: { id: categoryId },
+      data: { name: name.trim() },
+    });
+
+    return NextResponse.json({
+      id: updatedCategory.id,
+      name: updatedCategory.name,
+      serviceCount: existingCategory.serviceCount
+    });
+  } catch (error) {
+    console.error("Error updating category:", error);
+    return NextResponse.json({ error: "Failed to update category" }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -122,7 +179,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if category has any services
-    const servicesCount = await prisma.service.count({
+    const servicesCount = await prisma.serviceCategory.count({
       where: { categoryId: categoryId }
     });
 

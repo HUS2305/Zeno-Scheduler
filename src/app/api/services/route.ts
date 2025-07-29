@@ -26,6 +26,13 @@ export async function GET() {
     // Get all services for the business
     const services = await prisma.service.findMany({
       where: { businessId: business.id },
+      include: {
+        categoryLinks: {
+          include: {
+            category: true
+          }
+        }
+      }
     });
 
     return NextResponse.json(services);
@@ -47,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, duration, price, description, icon, isActive, categoryId } = await request.json();
+    const { name, duration, price, description, icon, isActive, categoryIds } = await request.json();
 
     // Validate required fields
     if (!name || !duration) {
@@ -66,24 +73,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Business not found" }, { status: 404 });
     }
 
-    // Create the service
-    const serviceData: any = {
-      name,
-      duration,
-      price: price || 0,
-      businessId: business.id,
-    };
-    
-    // Add categoryId if provided (using any type to bypass Prisma type checking for now)
-    if (categoryId) {
-      serviceData.categoryId = categoryId;
-    }
-    
+    // Create the service first
     const service = await prisma.service.create({
-      data: serviceData,
+      data: {
+        name,
+        duration,
+        price: price || 0,
+        businessId: business.id,
+      }
     });
 
-    return NextResponse.json(service, { status: 201 });
+    // Then create category relationships if categoryIds are provided
+    if (categoryIds && categoryIds.length > 0) {
+      const categoryLinks = categoryIds.map((categoryId: string) => ({
+        serviceId: service.id,
+        categoryId: categoryId
+      }));
+
+      await prisma.serviceCategory.createMany({
+        data: categoryLinks
+      });
+    }
+
+    // Return the service with category information
+    const serviceWithCategories = await prisma.service.findUnique({
+      where: { id: service.id },
+      include: {
+        categoryLinks: {
+          include: {
+            category: true
+          }
+        }
+      }
+    });
+
+    return NextResponse.json(serviceWithCategories, { status: 201 });
   } catch (error) {
     console.error("Error creating service:", error);
     return NextResponse.json(
@@ -102,7 +126,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, name, duration, price, description, icon, isActive, categoryId } = await request.json();
+    const { id, name, duration, price, description, icon, isActive, categoryIds } = await request.json();
 
     if (!id) {
       return NextResponse.json(
@@ -133,23 +157,48 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update the service
-    const updateData: any = {
-      name,
-      duration,
-      price: price || 0,
-    };
-    
-    // Add categoryId if provided
-    if (categoryId !== undefined) {
-      updateData.categoryId = categoryId || null;
-    }
-    
     const updatedService = await prisma.service.update({
       where: { id },
-      data: updateData,
+      data: {
+        name,
+        duration,
+        price: price || 0,
+      }
     });
 
-    return NextResponse.json(updatedService);
+    // Update category relationships
+    if (categoryIds !== undefined) {
+      // Delete existing category relationships
+      await prisma.serviceCategory.deleteMany({
+        where: { serviceId: id }
+      });
+
+      // Create new category relationships if categoryIds are provided
+      if (categoryIds && categoryIds.length > 0) {
+        const categoryLinks = categoryIds.map((categoryId: string) => ({
+          serviceId: id,
+          categoryId: categoryId
+        }));
+
+        await prisma.serviceCategory.createMany({
+          data: categoryLinks
+        });
+      }
+    }
+
+    // Return the updated service with category information
+    const serviceWithCategories = await prisma.service.findUnique({
+      where: { id },
+      include: {
+        categoryLinks: {
+          include: {
+            category: true
+          }
+        }
+      }
+    });
+
+    return NextResponse.json(serviceWithCategories);
   } catch (error) {
     console.error("Error updating service:", error);
     return NextResponse.json(

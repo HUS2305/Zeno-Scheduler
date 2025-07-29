@@ -39,10 +39,9 @@ model Service {
   price         Float?
   businessId    String              @db.ObjectId
   business      Business            @relation(fields: [businessId], references: [id])
-  categoryId    String?             @db.ObjectId
-  category      Category?           @relation(fields: [categoryId], references: [id])
   bookings      Booking[]
   teamLinks     ServiceTeamMember[] // <-- explicit relation
+  categoryLinks ServiceCategory[]   // <-- new relation for multiple categories
 }
 
 model TeamMember {
@@ -100,6 +99,18 @@ model Category {
   name       String
   businessId String    @db.ObjectId
   business   Business  @relation(fields: [businessId], references: [id])
-  services   Service[]
+  serviceLinks ServiceCategory[] // <-- new relation for multiple services
   createdAt  DateTime  @default(now())
+}
+
+// New junction table for many-to-many relationship between services and categories
+model ServiceCategory {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  serviceId  String    @db.ObjectId
+  categoryId String    @db.ObjectId
+  
+  service    Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  @@unique([serviceId, categoryId])
 }

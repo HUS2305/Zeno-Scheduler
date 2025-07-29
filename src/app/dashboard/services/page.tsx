@@ -31,7 +31,13 @@ interface Service {
   description?: string;
   icon?: string;
   isActive?: boolean;
-  categoryId?: string;
+  categoryLinks?: Array<{
+    categoryId: string;
+    category: {
+      id: string;
+      name: string;
+    };
+  }>;
 }
 
 interface Category {
@@ -50,6 +56,16 @@ export default function ServicesPage() {
   const [error, setError] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState<string | null>(null);
+  const [showCategoryDeleteModal, setShowCategoryDeleteModal] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState<string | null>(null);
+  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [showEditCategoryModal, setShowEditCategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState("");
+  const [selectedServicesForEdit, setSelectedServicesForEdit] = useState<string[]>([]);
+  const [serviceSearchQuery, setServiceSearchQuery] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -64,12 +80,26 @@ export default function ServicesPage() {
     fetchCategories();
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (categoryDropdownOpen) {
+        setCategoryDropdownOpen(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [categoryDropdownOpen]);
+
   // Update category counts when services change
   useEffect(() => {
     if (categories.length > 0) {
       const updatedCategories = categories.map(category => ({
         ...category,
-        serviceCount: services.filter(service => service.categoryId === category.id).length
+        serviceCount: services.filter(service => service.categoryLinks?.some(link => link.categoryId === category.id)).length
       }));
       setCategories(updatedCategories);
     }
@@ -101,29 +131,17 @@ export default function ServicesPage() {
         setCategories(data);
       } else {
         console.error("Failed to fetch categories");
-        // Fallback to mock data
-        const mockCategories: Category[] = [
-          { id: "1", name: "Consultations", serviceCount: 0 },
-          { id: "2", name: "Meetings", serviceCount: 0 },
-          { id: "3", name: "Training", serviceCount: 0 },
-        ];
-        setCategories(mockCategories);
+        setCategories([]);
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
-      // Fallback to mock data
-      const mockCategories: Category[] = [
-        { id: "1", name: "Consultations", serviceCount: 0 },
-        { id: "2", name: "Meetings", serviceCount: 0 },
-        { id: "3", name: "Training", serviceCount: 0 },
-      ];
-      setCategories(mockCategories);
+      setCategories([]);
     }
   };
 
   const filteredServices = services.filter(service => {
     const matchesSearch = service.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !selectedCategory || service.categoryId === selectedCategory;
+    const matchesCategory = !selectedCategory || service.categoryLinks?.some(link => link.categoryId === selectedCategory);
     return matchesSearch && matchesCategory;
   });
 
@@ -182,8 +200,64 @@ export default function ServicesPage() {
   };
 
   const handleCreateCategory = async () => {
-    const categoryName = prompt("Enter category name:");
-    if (!categoryName || !categoryName.trim()) return;
+    setShowCreateCategoryModal(true);
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    // Check if the category has any services
+    const categoryServices = services.filter(service => service.categoryLinks?.some(link => link.categoryId === categoryId));
+    
+    if (categoryServices.length > 0) {
+      setError("Cannot delete category that has services. Please reassign or delete the services first.");
+      return;
+    }
+    
+    setCategoryToDelete(categoryId);
+    setShowCategoryDeleteModal(true);
+  };
+
+  const handleConfirmCategoryDelete = async () => {
+    if (!categoryToDelete) return;
+
+    try {
+      const response = await fetch(`/api/categories?id=${categoryToDelete}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setCategories(prev => prev.filter(cat => cat.id !== categoryToDelete));
+        if (selectedCategory === categoryToDelete) {
+          setSelectedCategory(null);
+        }
+        setShowCategoryDeleteModal(false);
+        setCategoryToDelete(null);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to delete category");
+      }
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      setError("Failed to delete category");
+    }
+  };
+
+  const handleCancelCategoryDelete = () => {
+    setShowCategoryDeleteModal(false);
+    setCategoryToDelete(null);
+  };
+
+  const handleOpenCreateCategoryModal = () => {
+    setShowCreateCategoryModal(true);
+    setNewCategoryName("");
+  };
+
+  const handleCloseCreateCategoryModal = () => {
+    setShowCreateCategoryModal(false);
+    setNewCategoryName("");
+  };
+
+  const handleSubmitCreateCategory = async () => {
+    if (!newCategoryName || !newCategoryName.trim()) return;
 
     try {
       const response = await fetch("/api/categories", {
@@ -191,12 +265,13 @@ export default function ServicesPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name: categoryName.trim() }),
+        body: JSON.stringify({ name: newCategoryName.trim() }),
       });
 
       if (response.ok) {
         const newCategory = await response.json();
         setCategories(prev => [...prev, newCategory]);
+        handleCloseCreateCategoryModal();
       } else {
         setError("Failed to create category");
       }
@@ -206,29 +281,90 @@ export default function ServicesPage() {
     }
   };
 
-  const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm("Are you sure you want to delete this category? Services in this category will be unassigned.")) {
-      return;
-    }
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setEditCategoryName(category.name);
+    
+    // Get services that are currently assigned to this category
+    const categoryServices = services.filter(service => 
+      service.categoryLinks?.some(link => link.categoryId === category.id)
+    );
+    setSelectedServicesForEdit(categoryServices.map(service => service.id));
+    
+    setShowEditCategoryModal(true);
+    setCategoryDropdownOpen(null);
+  };
+
+  const handleCloseEditCategoryModal = () => {
+    setShowEditCategoryModal(false);
+    setEditingCategory(null);
+    setEditCategoryName("");
+    setSelectedServicesForEdit([]);
+    setServiceSearchQuery("");
+  };
+
+  const handleServiceToggleForEdit = (serviceId: string) => {
+    setSelectedServicesForEdit(prev => 
+      prev.includes(serviceId) 
+        ? prev.filter(id => id !== serviceId)
+        : [...prev, serviceId]
+    );
+  };
+
+  const handleSelectAllServices = () => {
+    const filteredServices = services.filter(service =>
+      service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase())
+    );
+    setSelectedServicesForEdit(filteredServices.map(service => service.id));
+  };
+
+  const handleDeselectAllServices = () => {
+    setSelectedServicesForEdit([]);
+  };
+
+  const handleUpdateCategory = async () => {
+    if (!editingCategory || !editCategoryName.trim()) return;
 
     try {
-      const response = await fetch(`/api/categories?id=${categoryId}`, {
-        method: "DELETE",
+      // First update the category name
+      const updateResponse = await fetch(`/api/categories?id=${editingCategory.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: editCategoryName.trim() }),
       });
 
-      if (response.ok) {
-        setCategories(prev => prev.filter(cat => cat.id !== categoryId));
-        if (selectedCategory === categoryId) {
-          setSelectedCategory(null);
-        }
+      if (!updateResponse.ok) {
+        setError("Failed to update category name");
+        return;
+      }
+
+      // Then update the service assignments
+      const servicesResponse = await fetch(`/api/categories/${editingCategory.id}/services`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ serviceIds: selectedServicesForEdit }),
+      });
+
+      if (servicesResponse.ok) {
+        // Refresh data
+        await fetchServices();
+        await fetchCategories();
+        handleCloseEditCategoryModal();
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || "Failed to delete category");
+        setError("Failed to update service assignments");
       }
     } catch (error) {
-      console.error("Error deleting category:", error);
-      setError("Failed to delete category");
+      console.error("Error updating category:", error);
+      setError("Failed to update category");
     }
+  };
+
+  const clearError = () => {
+    setError("");
   };
 
   if (isLoading) {
@@ -242,127 +378,159 @@ export default function ServicesPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Services & classes</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Services</h1>
+        <p className="text-sm text-gray-600 mt-1">Manage your services and organize them by categories to streamline your booking process.</p>
       </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-600">{error}</p>
+        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg relative">
+          <button
+            onClick={clearError}
+            className="absolute top-2 right-2 text-red-400 hover:text-red-600 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <p className="text-red-600 pr-6 text-sm">{error}</p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
         {/* Categories Sidebar */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Service categories ({categories.length})</h2>
-            
-            {/* Category Search */}
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Search categories..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900 text-sm"
-              />
-            </div>
+          <div className="mb-3">
+            <h2 className="text-sm font-bold text-gray-900 text-left">Categories ({categories.length})</h2>
+          </div>
 
-            {/* Categories List */}
-            <div className="space-y-2">
-              {categories.map((category) => (
-                <div
-                  key={category.id}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                    selectedCategory === category.id
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <button
-                      onClick={() => setSelectedCategory(selectedCategory === category.id ? null : category.id)}
-                      className="flex-1 text-left"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">{category.name}</span>
-                        <span className="text-xs text-gray-500">({category.serviceCount})</span>
-                      </div>
-                    </button>
+          {/* Categories List */}
+          <div className="space-y-1">
+            {categories.map((category) => (
+              <div
+                key={category.id}
+                className={`w-full text-left px-1.5 py-1 rounded-md transition-all duration-200 ${
+                  selectedCategory === category.id
+                    ? 'border border-gray-900 text-gray-900'
+                    : 'text-gray-700 hover:border hover:border-gray-900 hover:text-gray-900'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setSelectedCategory(selectedCategory === category.id ? null : category.id)}
+                    className="flex-1 text-left"
+                  >
+                    <div className="flex items-center">
+                      <span className="text-xs font-medium">{category.name}</span>
+                      <span className="text-xs text-gray-500 ml-1">({category.serviceCount})</span>
+                    </div>
+                  </button>
+                  <div className="relative">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteCategory(category.id);
+                        setCategoryDropdownOpen(categoryDropdownOpen === category.id ? null : category.id);
                       }}
-                      className="ml-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                      className="ml-1 p-0.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
+                      <MoreVertical className="w-3 h-3" />
                     </button>
+                    
+                    {/* Dropdown Menu */}
+                    {categoryDropdownOpen === category.id && (
+                      <div className="absolute right-0 top-6 z-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[100px]">
+                                                 <button
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             handleEditCategory(category);
+                           }}
+                           className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
+                         >
+                          <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCategoryDropdownOpen(null);
+                            handleDeleteCategory(category.id);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
+                        >
+                          <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Add New Category */}
-            <button 
-              onClick={handleCreateCategory}
-              className="w-full mt-4 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            >
-              + New service category
-            </button>
+              </div>
+            ))}
           </div>
+
+          {/* Add New Category */}
+          <button 
+            onClick={handleOpenCreateCategoryModal}
+            className="w-8 h-8 bg-black text-white rounded-full hover:bg-gray-800 transition-colors flex items-center justify-center mx-auto mt-3"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Services List */}
-        <div className="lg:col-span-2">
-          {/* Category Header */}
-          {selectedCategory && (
-            <div className="mb-4">
-              {(() => {
-                const category = categories.find(cat => cat.id === selectedCategory);
-                const categoryServices = services.filter(service => service.categoryId === selectedCategory);
-                return (
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {category?.name} ({categoryServices.length})
-                  </h3>
-                );
-              })()}
-            </div>
-          )}
+        <div className="lg:col-span-5 lg:pl-4">
+          {/* Services Header */}
+          <div className="mb-3">
+            <h2 className="text-sm font-bold text-gray-900 text-left">
+              {selectedCategory 
+                ? `${(() => {
+                    const category = categories.find(cat => cat.id === selectedCategory);
+                    const categoryServices = services.filter(service => service.categoryLinks?.some(link => link.categoryId === selectedCategory));
+                    return category?.name || 'Category';
+                  })()} (${(() => {
+                    const categoryServices = services.filter(service => service.categoryLinks?.some(link => link.categoryId === selectedCategory));
+                    return categoryServices.length;
+                  })()})`
+                : `Services (${services.length})`
+              }
+            </h2>
+          </div>
 
           {/* Search and Create Section */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex-1 max-w-md">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex-1 max-w-sm">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5" />
                 <input
                   type="text"
                   placeholder="Search services..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900"
+                  className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 text-sm"
                 />
               </div>
             </div>
             <button
               onClick={handleCreateService}
-              className="ml-4 flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="ml-3 flex items-center px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
               Create Service
             </button>
           </div>
 
           {/* Services List */}
           {services.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 mb-4">No services found</p>
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-3 text-sm">No services found</p>
               <button
                 onClick={handleCreateService}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm"
               >
                 Create your first service
               </button>
@@ -377,7 +545,7 @@ export default function ServicesPage() {
                 items={filteredServices.map(service => service.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {filteredServices.map((service, index) => (
                     <SortableServiceBlock
                       key={service.id}
@@ -395,33 +563,33 @@ export default function ServicesPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 relative">
             <button
               onClick={handleCancelDelete}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute top-4 right-4 text-black hover:text-gray-700 transition-colors"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
             <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Delete Service
+              <h3 className="text-base font-semibold text-gray-900 mb-3 mt-0">
+                Delete Service?
               </h3>
               <p className="text-sm text-gray-600 mb-6">
-                Are you sure you want to delete this service? This action cannot be undone.
+                You'll permanently delete this service. This action cannot be undone.
               </p>
-              <div className="flex space-x-3">
+              <div className="flex justify-end space-x-3">
                 <button
                   onClick={handleCancelDelete}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                  className="px-3 py-1.5 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmDelete}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                  className="px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm font-medium"
                 >
                   Delete
                 </button>
@@ -430,9 +598,258 @@ export default function ServicesPage() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
+
+      {/* Category Delete Confirmation Modal */}
+      {showCategoryDeleteModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 relative">
+            <button
+              onClick={handleCancelCategoryDelete}
+              className="absolute top-4 right-4 text-black hover:text-gray-700 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="p-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-3 mt-0">
+                Delete '{(() => {
+                  const category = categories.find(cat => cat.id === categoryToDelete);
+                  return category?.name || 'category';
+                })()}'?
+              </h3>
+              <p className="text-sm text-gray-600 mb-6">
+                You'll permanently delete this category but the associated services will remain in your account.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={handleCancelCategoryDelete}
+                  className="px-3 py-1.5 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmCategoryDelete}
+                  className="px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm font-medium"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Category Modal */}
+      {showCreateCategoryModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 relative">
+            <button
+              onClick={handleCloseCreateCategoryModal}
+              className="absolute top-4 right-4 text-black hover:text-gray-700 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="p-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-3 mt-0">
+                Enter category name:
+              </h3>
+              <div className="mb-6">
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const capitalizedValue = value.charAt(0).toUpperCase() + value.slice(1);
+                    setNewCategoryName(capitalizedValue);
+                  }}
+                  placeholder="Category name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-500 text-gray-900 text-sm"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSubmitCreateCategory();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={handleCloseCreateCategoryModal}
+                  className="px-3 py-1.5 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitCreateCategory}
+                  className="px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm font-medium"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+                 </div>
+       )}
+
+       {/* Edit Category Modal */}
+       {showEditCategoryModal && editingCategory && (
+         <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 relative max-h-[90vh] overflow-hidden">
+             <button
+               onClick={handleCloseEditCategoryModal}
+               className="absolute top-4 right-4 text-black hover:text-gray-700 transition-colors"
+             >
+               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+               </svg>
+             </button>
+             <div className="p-6">
+               <h3 className="text-base font-semibold text-gray-900 mb-3 mt-0">
+                 Edit category
+               </h3>
+               
+               {/* Category Title Section */}
+               <div className="mb-6">
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   Title *
+                 </label>
+                 <input
+                   type="text"
+                   value={editCategoryName}
+                   onChange={(e) => {
+                     const value = e.target.value;
+                     const capitalizedValue = value.charAt(0).toUpperCase() + value.slice(1);
+                     setEditCategoryName(capitalizedValue);
+                   }}
+                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-500 text-gray-900 text-sm"
+                   placeholder="Category name"
+                 />
+               </div>
+
+               {/* Services Section */}
+               <div className="mb-6">
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   Services
+                 </label>
+                 
+                 {/* Search Bar */}
+                 <div className="relative mb-3">
+                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                   <input
+                     type="text"
+                     placeholder="Search"
+                     value={serviceSearchQuery}
+                     onChange={(e) => setServiceSearchQuery(e.target.value)}
+                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-500 text-gray-900 text-sm"
+                   />
+                 </div>
+
+                                           {/* Select All Checkbox */}
+                          <div className="flex items-center mb-3">
+                            <div 
+                              className="flex items-center mr-2 cursor-pointer"
+                              onClick={services.filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase())).length > 0 &&
+                                       services.filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase())).every(service => selectedServicesForEdit.includes(service.id))
+                                ? handleDeselectAllServices
+                                : handleSelectAllServices}
+                            >
+                              <div className={`h-4 w-4 rounded-sm border border-gray-300 flex items-center justify-center ${
+                                services.filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase())).length > 0 &&
+                                services.filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase())).every(service => selectedServicesForEdit.includes(service.id))
+                                  ? 'bg-black border-black'
+                                  : 'bg-white'
+                              }`}>
+                                {services.filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase())).length > 0 &&
+                                 services.filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase())).every(service => selectedServicesForEdit.includes(service.id)) && (
+                                  <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              onClick={services.filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase())).length > 0 &&
+                                       services.filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase())).every(service => selectedServicesForEdit.includes(service.id))
+                                ? handleDeselectAllServices
+                                : handleSelectAllServices}
+                              className="text-sm text-gray-700 hover:text-gray-900"
+                            >
+                              Select all
+                            </button>
+                            <span className="ml-2 text-sm text-gray-500">
+                              {selectedServicesForEdit.length}/{services.length}
+                            </span>
+                          </div>
+
+                                           {/* Services List */}
+                          <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">
+                            {services
+                              .filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()))
+                              .map((service) => (
+                                                                 <div
+                                   key={service.id}
+                                   onClick={() => handleServiceToggleForEdit(service.id)}
+                                   className="flex items-center p-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer"
+                                 >
+                                  <div className="flex items-center mr-3">
+                                    <div className={`h-4 w-4 rounded-sm border border-gray-300 flex items-center justify-center ${
+                                      selectedServicesForEdit.includes(service.id)
+                                        ? 'bg-black border-black'
+                                        : 'bg-white'
+                                    }`}>
+                                      {selectedServicesForEdit.includes(service.id) && (
+                                        <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center mr-3">
+                                    <div className="w-8 h-8 bg-gray-100 rounded-md flex items-center justify-center">
+                                      <span className="text-sm">{service.icon || '📋'}</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium text-gray-900">{service.name}</div>
+                                    <div className="text-xs text-gray-500">
+                                      {service.duration} mins · {service.price === 0 ? 'Free' : `$${service.price}`}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+               </div>
+
+               {/* Modal Footer */}
+               <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                 <button
+                   onClick={handleCloseEditCategoryModal}
+                   className="px-3 py-1.5 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium"
+                 >
+                   Cancel
+                 </button>
+                 <button
+                   onClick={handleUpdateCategory}
+                   disabled={!editCategoryName.trim()}
+                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                     editCategoryName.trim()
+                       ? 'bg-black text-white hover:bg-gray-800'
+                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                   }`}
+                 >
+                   Update
+                 </button>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+     </div>
+   );
+ }
 
 function SortableServiceBlock({ service, onClick, onDelete, isHighlighted }: {
   service: Service;
@@ -459,22 +876,22 @@ function SortableServiceBlock({ service, onClick, onDelete, isHighlighted }: {
     <div 
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-lg shadow-sm border transition-all hover:shadow-md ${
+      className={`bg-white rounded-md shadow-sm border transition-all hover:shadow-md ${
         isHighlighted ? 'border-yellow-300 border-l-4' : 'border-gray-200'
       } ${isDragging ? 'shadow-lg' : ''}`}
     >
-      <div className="flex items-center p-4">
+      <div className="flex items-center p-3">
         {/* Drag Handle */}
         <div 
           {...attributes}
           {...listeners}
-          className="mr-3 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+          className="mr-2 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
         >
-          <GripVertical className="h-4 w-4" />
+          <GripVertical className="h-3.5 w-3.5" />
         </div>
         
         {/* Icon */}
-        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-4">
+        <div className="w-12 h-12 bg-gray-100 rounded-md flex items-center justify-center mr-3">
           <span className="text-lg">{service.icon}</span>
         </div>
 
@@ -483,40 +900,63 @@ function SortableServiceBlock({ service, onClick, onDelete, isHighlighted }: {
           className="flex-1 cursor-pointer"
           onClick={onClick}
         >
-          <h3 className="font-medium text-gray-900">{service.name}</h3>
-          <p className="text-sm text-gray-500">
+          <h3 className="font-medium text-gray-900 text-sm">{service.name}</h3>
+          <p className="text-xs text-gray-500">
             {service.duration} mins · {service.price === 0 ? 'Free' : `$${service.price}`}
           </p>
+                     {/* Display multiple categories */}
+           {service.categoryLinks && service.categoryLinks.length > 0 && (
+             <div className="flex flex-wrap gap-1 mt-1">
+               {service.categoryLinks.slice(0, 2).map((link, index) => (
+                 <span 
+                   key={link.categoryId}
+                   className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-black text-white"
+                 >
+                   {link.category.name}
+                 </span>
+               ))}
+               {service.categoryLinks.length > 2 && (
+                 <span 
+                   className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-200 text-gray-700"
+                   title={service.categoryLinks.slice(2).map(link => link.category.name).join(', ')}
+                 >
+                   +{service.categoryLinks.length - 2}
+                 </span>
+               )}
+             </div>
+           )}
         </div>
 
         {/* Action Icons */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1">
           <button 
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
-            <Users className="h-4 w-4 text-gray-500" />
+            <Users className="h-3.5 w-3.5 text-gray-500" />
           </button>
           <button 
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
-            <Share className="h-4 w-4 text-gray-500" />
+            <Share className="h-3.5 w-3.5 text-gray-500" />
           </button>
           <button 
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
-            <Link className="h-4 w-4 text-gray-500" />
+            <Link className="h-3.5 w-3.5 text-gray-500" />
           </button>
           <button 
-            className="p-2 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-red-100 text-red-600 rounded-md transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
             }}
           >
-            Delete
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
           </button>
         </div>
       </div>

@@ -10,10 +10,10 @@ export default async function CustomersPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-        <p className="text-gray-600">Manage your customer relationships</p>
+        <h1 className="text-xl font-semibold text-gray-900">Customers</h1>
+        <p className="text-sm text-gray-600 mt-1">Manage your customer relationships and view booking history.</p>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">

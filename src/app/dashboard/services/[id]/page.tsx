@@ -43,6 +43,9 @@ export default function ServiceEditPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showBufferTimeTooltip, setShowBufferTimeTooltip] = useState(false);
+  const [showHiddenTooltip, setShowHiddenTooltip] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [originalFormData, setOriginalFormData] = useState({
     name: "",
     description: "",
@@ -50,7 +53,7 @@ export default function ServiceEditPage() {
     bufferTime: 0,
     price: 0,
     location: "",
-    categoryId: "",
+    categoryIds: [] as string[],
     isHidden: false,
   });
 
@@ -61,7 +64,7 @@ export default function ServiceEditPage() {
     bufferTime: 0,
     price: 0,
     location: "",
-    categoryId: "",
+    categoryIds: [] as string[],
     isHidden: false,
   });
 
@@ -69,6 +72,24 @@ export default function ServiceEditPage() {
   const hasChanges = () => {
     return JSON.stringify(formData) !== JSON.stringify(originalFormData);
   };
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.category-dropdown')) {
+        setShowCategoryDropdown(false);
+      }
+    };
+
+    if (showCategoryDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCategoryDropdown]);
 
   useEffect(() => {
     if (serviceId && !isNewService) {
@@ -88,14 +109,18 @@ export default function ServiceEditPage() {
       if (response.ok) {
         const serviceData = await response.json();
         setService(serviceData);
+        
+        // Extract categoryIds from the new categoryLinks structure
+        const categoryIds = serviceData.categoryLinks?.map((link: any) => link.categoryId) || [];
+        
         const initialFormData = {
           name: serviceData.name || "",
           description: serviceData.description || "",
           duration: serviceData.duration || 30,
-          bufferTime: 0, // Not in current schema, but can be added
+          bufferTime: 0,
           price: serviceData.price || 0,
           location: "",
-          categoryId: serviceData.categoryId || "",
+          categoryIds: categoryIds,
           isHidden: false,
         };
         setFormData(initialFormData);
@@ -131,28 +156,15 @@ export default function ServiceEditPage() {
         setCategories(data);
       } else {
         console.error("Failed to fetch categories");
-        // Fallback to mock data
-        const mockCategories: Category[] = [
-          { id: "1", name: "Consultations", serviceCount: 2 },
-          { id: "2", name: "Meetings", serviceCount: 1 },
-          { id: "3", name: "Training", serviceCount: 0 },
-        ];
-        setCategories(mockCategories);
+        setCategories([]);
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
-      // Fallback to mock data
-      const mockCategories: Category[] = [
-        { id: "1", name: "Consultations", serviceCount: 2 },
-        { id: "2", name: "Meetings", serviceCount: 1 },
-        { id: "3", name: "Training", serviceCount: 0 },
-      ];
-      setCategories(mockCategories);
+      setCategories([]);
     }
   };
 
   const handleSave = async () => {
-    // Validate required fields
     if (!formData.name.trim() || formData.duration <= 0) {
       setError("Please fill out all fields marked with a *");
       return;
@@ -161,39 +173,40 @@ export default function ServiceEditPage() {
     try {
       setIsSaving(true);
       
+      // Send categoryIds array directly to backend
+      const saveData = {
+        ...formData,
+        categoryIds: formData.categoryIds, // Send the full array
+      };
+      
       if (isNewService) {
-        // Create new service
         const response = await fetch("/api/services", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(saveData),
         });
 
         if (response.ok) {
           const newService = await response.json();
-          // Redirect back to services list page
           router.push("/dashboard/services");
         } else {
           setError("Failed to create service");
         }
       } else {
-        // Update existing service
         const response = await fetch(`/api/services/${serviceId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(saveData),
         });
 
         if (response.ok) {
           const updatedService = await response.json();
           setService(updatedService);
-          // Update original form data to reflect saved state
           setOriginalFormData(formData);
-          // Redirect back to services list
           router.push("/dashboard/services");
         } else {
           setError("Failed to update service");
@@ -246,7 +259,6 @@ export default function ServiceEditPage() {
     if (hasChanges()) {
       setShowUnsavedChangesModal(true);
     } else {
-      // No changes, just go back
       router.push("/dashboard/services");
     }
   };
@@ -263,6 +275,23 @@ export default function ServiceEditPage() {
 
   const handleCloseModal = () => {
     setShowUnsavedChangesModal(false);
+  };
+
+  const handleCategorySelect = (categoryId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      categoryIds: prev.categoryIds.includes(categoryId)
+        ? prev.categoryIds.filter(id => id !== categoryId)
+        : [...prev.categoryIds, categoryId]
+    }));
+    // Don't close dropdown for multi-select
+  };
+
+  const getSelectedCategoryNames = () => {
+    return formData.categoryIds.map(id => {
+      const category = categories.find(cat => cat.id === id);
+      return category ? category.name : "";
+    }).join(", ");
   };
 
   if (isLoading) {
@@ -292,17 +321,17 @@ export default function ServiceEditPage() {
   }
 
   return (
-          <div className="p-4 max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
+    <div className="p-3 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-3">
           <button
             onClick={handleBackClick}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
+            className="p-1 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-3 w-3" />
           </button>
-          <h1 className="text-lg font-bold text-gray-900">
+          <h1 className="text-base font-bold text-gray-900">
             {isNewService ? "Create service" : "Edit service"}
           </h1>
         </div>
@@ -318,7 +347,7 @@ export default function ServiceEditPage() {
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="px-2 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-xs"
+            className="px-2 py-1 bg-black text-white rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50 text-xs"
           >
             {isSaving ? "Saving..." : "Save"}
           </button>
@@ -326,14 +355,14 @@ export default function ServiceEditPage() {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-600 text-sm">Please fill out all fields marked with a *</p>
+        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600 text-xs">Please fill out all fields marked with a *</p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4">
           {/* Service Details */}
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Service details</h2>
@@ -341,20 +370,20 @@ export default function ServiceEditPage() {
             {/* Service Image */}
             <div className="mb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center border border-gray-300">
-                  <span className="text-xl">🌳</span>
+                <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center border border-gray-300">
+                  <span className="text-lg">🌳</span>
                 </div>
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Service image
                   </label>
-                  <p className="text-xs text-gray-500 mb-2">Up to 5 MB in size</p>
+                  <p className="text-xs text-gray-500 mb-1">Up to 5 MB in size</p>
                   <div className="flex space-x-2">
-                    <button className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors text-gray-700">
+                    <button className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-gray-700">
                       <Edit className="h-3 w-3 inline mr-1" />
                       Edit
                     </button>
-                    <button className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors text-gray-700">
+                    <button className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 transition-colors text-gray-700">
                       <Trash2 className="h-3 w-3 inline mr-1" />
                     </button>
                   </div>
@@ -367,13 +396,17 @@ export default function ServiceEditPage() {
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Title *
               </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900 text-sm"
-                placeholder="Service title"
-              />
+                             <input
+                 type="text"
+                 value={formData.name}
+                 onChange={(e) => {
+                   const value = e.target.value;
+                   const capitalizedValue = value.charAt(0).toUpperCase() + value.slice(1);
+                   setFormData({...formData, name: capitalizedValue});
+                 }}
+                 className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 text-xs"
+                 placeholder="Service title"
+               />
             </div>
 
             {/* Description */}
@@ -381,41 +414,59 @@ export default function ServiceEditPage() {
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Description
               </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                rows={3}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900 text-sm"
-                placeholder="Describe your service to Booking Page visitors"
-              />
+                             <textarea
+                 value={formData.description}
+                 onChange={(e) => {
+                   const value = e.target.value;
+                   const capitalizedValue = value.charAt(0).toUpperCase() + value.slice(1);
+                   setFormData({...formData, description: capitalizedValue});
+                 }}
+                 rows={2}
+                 className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 text-xs"
+                 placeholder="Describe your service to Booking Page visitors"
+               />
             </div>
 
             {/* Duration and Buffer Time */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
                   Duration *
                 </label>
                 <input
                   type="number"
                   value={formData.duration}
                   onChange={(e) => setFormData({...formData, duration: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900"
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 text-xs"
                 />
-                <p className="text-sm text-gray-500 mt-1">mins</p>
+                <p className="text-xs text-gray-500 mt-0.5">mins</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                  Buffer time
-                  <Info className="h-4 w-4 ml-1 text-gray-400" />
-                </label>
+                <div className="relative">
+                  <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center">
+                    Buffer time
+                    <div
+                      onMouseEnter={() => setShowBufferTimeTooltip(true)}
+                      onMouseLeave={() => setShowBufferTimeTooltip(false)}
+                      className="ml-1 p-0.5 text-gray-400 hover:text-gray-600 transition-colors cursor-help"
+                    >
+                      <Info className="h-3 w-3" />
+                    </div>
+                  </label>
+                  {showBufferTimeTooltip && (
+                    <div className="absolute top-6 left-0 z-10 bg-black text-white text-xs rounded-md px-2 py-1.5 max-w-xs shadow-lg">
+                      Add time to prep in between two consecutive appointments.
+                      <div className="absolute -top-1 left-3 w-2 h-2 bg-black rotate-45"></div>
+                    </div>
+                  )}
+                </div>
                 <input
                   type="number"
                   value={formData.bufferTime}
                   onChange={(e) => setFormData({...formData, bufferTime: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900"
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 text-xs"
                 />
-                <p className="text-sm text-gray-500 mt-1">mins</p>
+                <p className="text-xs text-gray-500 mt-0.5">mins</p>
               </div>
             </div>
 
@@ -428,7 +479,7 @@ export default function ServiceEditPage() {
                 type="number"
                 value={formData.price}
                 onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value)})}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900 text-sm"
+                className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 text-xs"
                 placeholder="0"
               />
             </div>
@@ -441,7 +492,7 @@ export default function ServiceEditPage() {
               <select
                 value={formData.location}
                 onChange={(e) => setFormData({...formData, location: e.target.value})}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900 text-sm"
+                className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent text-gray-900 text-xs"
               >
                 <option value="">Select location</option>
                 <option value="online">Online</option>
@@ -455,27 +506,90 @@ export default function ServiceEditPage() {
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Category
               </label>
-              <select
-                value={formData.categoryId}
-                onChange={(e) => setFormData({...formData, categoryId: e.target.value})}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 text-sm"
-              >
-                <option value="">Select a category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative category-dropdown">
+                <div
+                  onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-transparent text-gray-900 text-xs cursor-pointer flex items-center justify-between bg-white"
+                >
+                  <span className={getSelectedCategoryNames() ? "text-gray-900" : "text-gray-500"}>
+                    {getSelectedCategoryNames() || "Select one or more categories"}
+                  </span>
+                  <svg
+                    className={`w-3 h-3 text-gray-400 transition-transform ${showCategoryDropdown ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                
+                {showCategoryDropdown && (
+                  <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                    <div className="max-h-48 overflow-y-auto">
+                      {categories.map((category) => (
+                        <div
+                          key={category.id}
+                          onClick={() => handleCategorySelect(category.id)}
+                          className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                        >
+                                                     <div className="flex items-center mr-2">
+                             <div className={`h-4 w-4 rounded-sm border border-gray-300 flex items-center justify-center ${
+                               formData.categoryIds.includes(category.id) 
+                                 ? 'bg-black border-black' 
+                                 : 'bg-white'
+                             }`}>
+                               {formData.categoryIds.includes(category.id) && (
+                                 <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                 </svg>
+                               )}
+                             </div>
+                           </div>
+                          <span className="text-xs text-gray-900">{category.name}</span>
+                        </div>
+                      ))}
+                      {categories.length === 0 && (
+                        <div className="px-3 py-2 text-xs text-gray-500">
+                          No categories found
+                        </div>
+                      )}
+                    </div>
+                    {/* Close button for multi-select */}
+                    <div className="border-t border-gray-200 p-2">
+                      <button
+                        onClick={() => setShowCategoryDropdown(false)}
+                        className="w-full text-xs text-gray-600 hover:text-gray-800 text-center py-1"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Hidden Toggle */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <label className="block text-xs font-medium text-gray-700 mr-2">
-                  Set to hidden
-                </label>
-                <Info className="h-3 w-3 text-gray-400" />
+              <div className="relative">
+                <div className="flex items-center">
+                  <label className="block text-xs font-medium text-gray-700 mr-2">
+                    Set to hidden
+                  </label>
+                  <div
+                    onMouseEnter={() => setShowHiddenTooltip(true)}
+                    onMouseLeave={() => setShowHiddenTooltip(false)}
+                    className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors cursor-help"
+                  >
+                    <Info className="h-3 w-3" />
+                  </div>
+                </div>
+                {showHiddenTooltip && (
+                  <div className="absolute top-6 left-0 z-10 bg-black text-white text-xs rounded-md px-2 py-1.5 max-w-xs shadow-lg">
+                    When set to hidden, a service is not visible on your Booking Page.
+                    <div className="absolute -top-1 left-3 w-2 h-2 bg-black rotate-45"></div>
+                  </div>
+                )}
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -484,17 +598,17 @@ export default function ServiceEditPage() {
                   onChange={(e) => setFormData({...formData, isHidden: e.target.checked})}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
               </label>
             </div>
           </div>
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Team Section */}
           <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <h3 className="text-base font-semibold text-gray-900 mb-3">Team *</h3>
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Team *</h3>
             <p className="text-xs text-gray-600 mb-3">Who will provide this service?</p>
             
             {/* Search */}
@@ -505,12 +619,12 @@ export default function ServiceEditPage() {
                 placeholder="Search team members..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-600 text-gray-900 text-sm"
+                className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 text-xs"
               />
             </div>
 
             {/* Team Members List */}
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {teamMembers
                 .filter(member => 
                   member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -535,7 +649,7 @@ export default function ServiceEditPage() {
             </div>
 
             {teamMembers.length === 0 && (
-              <p className="text-xs text-gray-500 text-center py-2">
+              <p className="text-xs text-gray-500 text-center py-3">
                 No team members found
               </p>
             )}
@@ -545,41 +659,33 @@ export default function ServiceEditPage() {
 
       {/* Unsaved Changes Modal */}
       {showUnsavedChangesModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 relative">
-            {/* Close button */}
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 relative">
             <button
               onClick={handleCloseModal}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute top-3 right-3 text-black hover:text-gray-700 transition-colors"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-
-            {/* Modal content */}
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2 mt-0">
                 Unsaved Changes
               </h3>
-              <p className="text-sm text-gray-600 mb-6">
-                {isNewService 
-                  ? "You have unsaved changes. Do you want to save this service before going back?"
-                  : "You have unsaved changes. Do you want to save your changes before going back?"
-                }
+              <p className="text-xs text-gray-600 mb-4">
+                You have unsaved changes. Do you want to save your changes before going back?
               </p>
-
-              {/* Action buttons */}
-              <div className="flex space-x-3">
+              <div className="flex justify-end space-x-2">
                 <button
                   onClick={handleDiscardAndGoBack}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                  className="px-2 py-1 text-gray-600 hover:text-gray-800 transition-colors text-xs font-medium"
                 >
                   Discard
                 </button>
                 <button
                   onClick={handleSaveAndGoBack}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  className="px-2 py-1 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-xs font-medium"
                 >
                   Save
                 </button>
@@ -591,38 +697,33 @@ export default function ServiceEditPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 relative">
-            {/* Close button */}
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 relative">
             <button
               onClick={handleCancelDelete}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute top-3 right-3 text-black hover:text-gray-700 transition-colors"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-
-            {/* Modal content */}
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2 mt-0">
                 Delete Service
               </h3>
-              <p className="text-sm text-gray-600 mb-6">
+              <p className="text-xs text-gray-600 mb-4">
                 Are you sure you want to delete this service? This action cannot be undone.
               </p>
-
-              {/* Action buttons */}
-              <div className="flex space-x-3">
+              <div className="flex justify-end space-x-2">
                 <button
                   onClick={handleCancelDelete}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                  className="px-2 py-1 text-gray-600 hover:text-gray-800 transition-colors text-xs font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmDelete}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                  className="px-2 py-1 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-xs font-medium"
                 >
                   Delete
                 </button>
@@ -633,4 +734,4 @@ export default function ServiceEditPage() {
       )}
     </div>
   );
-} 
+}

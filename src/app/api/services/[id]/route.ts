@@ -34,6 +34,13 @@ export async function GET(
         id,
         businessId: business.id,
       },
+      include: {
+        categoryLinks: {
+          include: {
+            category: true
+          }
+        }
+      }
     });
 
     if (!service) {
@@ -63,7 +70,7 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const { name, duration, price, description, location, categoryId, isHidden } = await request.json();
+    const { name, duration, price, description, location, categoryIds, isHidden } = await request.json();
 
     // Validate required fields
     if (!name || !duration) {
@@ -94,25 +101,49 @@ export async function PUT(
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
 
-    // Prepare update data
-    const updateData: any = {
-      name,
-      duration,
-      price: price || 0,
-    };
-
-    // Add categoryId if provided
-    if (categoryId !== undefined) {
-      updateData.categoryId = categoryId || null;
-    }
-
     // Update the service
     const updatedService = await prisma.service.update({
       where: { id },
-      data: updateData,
+      data: {
+        name,
+        duration,
+        price: price || 0,
+      }
     });
 
-    return NextResponse.json(updatedService);
+    // Update category relationships
+    if (categoryIds !== undefined) {
+      // Delete existing category relationships
+      await prisma.serviceCategory.deleteMany({
+        where: { serviceId: id }
+      });
+
+      // Create new category relationships if categoryIds are provided
+      if (categoryIds && categoryIds.length > 0) {
+        const categoryLinks = categoryIds.map((categoryId: string) => ({
+          serviceId: id,
+          categoryId: categoryId
+        }));
+
+        await prisma.serviceCategory.createMany({
+          data: categoryLinks
+        });
+      }
+    }
+
+    // Return the updated service with category information
+    const serviceWithCategories = await prisma.service.findUnique({
+      where: { id },
+      include: {
+        categoryLinks: {
+          include: {
+            category: true
+          }
+        }
+      }
+    });
+
+    return NextResponse.json(serviceWithCategories);
   } catch (error) {
     console.error("Error updating service:", error);
     return NextResponse.json(

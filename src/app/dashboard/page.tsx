@@ -101,12 +101,10 @@ export default async function DashboardPage() {
   }, {} as Record<string, typeof weekBookings>);
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Overview</h1>
-        <p className="text-gray-600">
-          Your business at a glance
-        </p>
+    <div className="p-4">
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-gray-900">Overview</h1>
+        <p className="text-sm text-gray-600 mt-1">Your business at a glance with key metrics and upcoming appointments.</p>
       </div>
 
       {/* Stats Row */}
