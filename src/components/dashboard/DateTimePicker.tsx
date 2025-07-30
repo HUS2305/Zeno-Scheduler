@@ -1,0 +1,213 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+
+interface DateTimePickerProps {
+  selectedDate: Date;
+  selectedTime: string;
+  onDateChange: (date: Date) => void;
+  onTimeChange: (time: string) => void;
+  className?: string;
+}
+
+export default function DateTimePicker({
+  selectedDate,
+  selectedTime,
+  onDateChange,
+  onTimeChange,
+  className = ""
+}: DateTimePickerProps) {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate));
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Generate time options (15-minute intervals from 00:00 to 23:45)
+  const generateTimeOptions = () => {
+    const times = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        const displayTime = hour === 0 ? `12:${minute.toString().padStart(2, '0')} AM` :
+                           hour === 12 ? `12:${minute.toString().padStart(2, '0')} PM` :
+                           hour > 12 ? `${hour - 12}:${minute.toString().padStart(2, '0')} PM` :
+                           `${hour}:${minute.toString().padStart(2, '0')} AM`;
+        times.push({ value: timeString, display: displayTime });
+      }
+    }
+    return times;
+  };
+
+  const timeOptions = generateTimeOptions();
+
+  // Generate calendar days
+  const generateCalendarDays = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    
+    const days = [];
+    const endDate = new Date(lastDay);
+    endDate.setDate(endDate.getDate() + (6 - lastDay.getDay()));
+    
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+      days.push(new Date(date));
+    }
+    
+    return days;
+  };
+
+  const calendarDays = generateCalendarDays();
+
+  const handleDateSelect = (date: Date) => {
+    const newDate = new Date(date);
+    newDate.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+    onDateChange(newDate);
+    setShowCalendar(false);
+  };
+
+  const handleMonthChange = (direction: 'prev' | 'next') => {
+    const newMonth = new Date(currentMonth);
+    if (direction === 'prev') {
+      newMonth.setMonth(newMonth.getMonth() - 1);
+    } else {
+      newMonth.setMonth(newMonth.getMonth() + 1);
+    }
+    setCurrentMonth(newMonth);
+  };
+
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const isSelected = (date: Date) => {
+    return date.toDateString() === selectedDate.toDateString();
+  };
+
+  const isCurrentMonth = (date: Date) => {
+    return date.getMonth() === currentMonth.getMonth();
+  };
+
+  return (
+    <div className={`relative ${className}`}>
+      {/* Date and Time Display */}
+      <div className="flex items-center space-x-2">
+        {/* Date Picker */}
+        <div className="relative">
+          <button
+            onClick={() => setShowCalendar(!showCalendar)}
+            className="px-2 py-1.5 border border-gray-300 rounded-full text-xs text-left focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white flex items-center justify-between min-w-[100px]"
+          >
+            <span className="text-gray-900">
+              {selectedDate.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                day: 'numeric', 
+                month: 'short' 
+              })}
+            </span>
+            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+
+          {/* Calendar Popup */}
+          {showCalendar && (
+            <div
+              ref={calendarRef}
+              className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[280px]"
+            >
+              {/* Calendar Header */}
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => handleMonthChange('prev')}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="text-sm font-medium text-gray-900">
+                  {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </span>
+                <button
+                  onClick={() => handleMonthChange('next')}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Day Headers */}
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day) => (
+                  <div key={day} className="text-xs text-gray-500 text-center py-1">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar Days */}
+              <div className="grid grid-cols-7 gap-1">
+                {calendarDays.map((date, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleDateSelect(date)}
+                    className={`text-xs py-1 px-1 rounded hover:bg-gray-100 transition-colors ${
+                      isSelected(date)
+                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                        : isToday(date)
+                        ? 'bg-gray-100 text-gray-900'
+                        : isCurrentMonth(date)
+                        ? 'text-gray-900'
+                        : 'text-gray-400'
+                    }`}
+                  >
+                    {date.getDate()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Time Picker */}
+        <div className="relative">
+          <select
+            value={selectedTime}
+            onChange={(e) => onTimeChange(e.target.value)}
+            className="px-2 py-1.5 border border-gray-300 rounded-full text-xs text-left focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white appearance-none pr-6"
+            style={{ backgroundImage: 'none' }}
+          >
+            {timeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.display}
+              </option>
+            ))}
+          </select>
+          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
+            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+} 

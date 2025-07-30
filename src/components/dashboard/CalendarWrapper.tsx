@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import InteractiveCalendar from "./InteractiveCalendar";
 
 interface Booking {
@@ -15,12 +15,10 @@ interface Booking {
   };
 }
 
-interface CalendarWrapperProps {
-  weekBookings: Booking[];
-  bookingsByDay: Record<string, Booking[]>;
-}
-
-export default function CalendarWrapper({ weekBookings, bookingsByDay }: CalendarWrapperProps) {
+export default function CalendarWrapper() {
+  const [weekBookings, setWeekBookings] = useState<Booking[]>([]);
+  const [bookingsByDay, setBookingsByDay] = useState<Record<string, Booking[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
   const today = new Date();
   const [currentStartOfWeek, setCurrentStartOfWeek] = useState(() => {
     const startOfWeek = new Date(today);
@@ -36,10 +34,57 @@ export default function CalendarWrapper({ weekBookings, bookingsByDay }: Calenda
     return endOfWeek;
   });
 
+  const fetchBookings = async () => {
+    try {
+      const response = await fetch("/api/bookings");
+      if (response.ok) {
+        const bookings = await response.json();
+        
+        // Filter bookings for current week
+        const weekBookings = bookings.filter((booking: any) => {
+          const bookingDate = new Date(booking.date);
+          return bookingDate >= currentStartOfWeek && bookingDate <= currentEndOfWeek;
+        });
+        
+        // Group bookings by day
+        const bookingsByDay: Record<string, Booking[]> = {};
+        weekBookings.forEach((booking: any) => {
+          const dateKey = new Date(booking.date).toDateString();
+          if (!bookingsByDay[dateKey]) {
+            bookingsByDay[dateKey] = [];
+          }
+          bookingsByDay[dateKey].push(booking);
+        });
+        
+        setWeekBookings(weekBookings);
+        setBookingsByDay(bookingsByDay);
+      }
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBookings();
+  }, [currentStartOfWeek, currentEndOfWeek]);
+
   const handleWeekChange = (startDate: Date, endDate: Date) => {
     setCurrentStartOfWeek(startDate);
     setCurrentEndOfWeek(endDate);
   };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="text-gray-500 mt-4">Loading calendar...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <InteractiveCalendar
@@ -49,6 +94,7 @@ export default function CalendarWrapper({ weekBookings, bookingsByDay }: Calenda
       weekBookings={weekBookings}
       bookingsByDay={bookingsByDay}
       onWeekChange={handleWeekChange}
+      onAppointmentCreated={fetchBookings}
     />
   );
 } 

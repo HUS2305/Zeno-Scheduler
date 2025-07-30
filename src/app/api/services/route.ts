@@ -31,6 +31,11 @@ export async function GET() {
           include: {
             category: true
           }
+        },
+        teamLinks: {
+          include: {
+            teamMember: true
+          }
         }
       }
     });
@@ -54,7 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, duration, price, description, icon, isActive, categoryIds } = await request.json();
+    const { name, duration, price, description, icon, isActive, categoryIds, teamMemberIds } = await request.json();
 
     // Validate required fields
     if (!name || !duration) {
@@ -95,13 +100,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Return the service with category information
+    // Create team member relationships if teamMemberIds are provided
+    if (teamMemberIds && teamMemberIds.length > 0) {
+      const teamLinks = teamMemberIds.map((teamMemberId: string) => ({
+        serviceId: service.id,
+        teamMemberId: teamMemberId
+      }));
+
+      await prisma.serviceTeamMember.createMany({
+        data: teamLinks
+      });
+    }
+
+    // Return the service with category and team member information
     const serviceWithCategories = await prisma.service.findUnique({
       where: { id: service.id },
       include: {
         categoryLinks: {
           include: {
             category: true
+          }
+        },
+        teamLinks: {
+          include: {
+            teamMember: true
           }
         }
       }
@@ -126,7 +148,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, name, duration, price, description, icon, isActive, categoryIds } = await request.json();
+    const { id, name, duration, price, description, icon, isActive, categoryIds, teamMemberIds } = await request.json();
 
     if (!id) {
       return NextResponse.json(
@@ -186,13 +208,38 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Return the updated service with category information
+    // Update team member relationships
+    if (teamMemberIds !== undefined) {
+      // Delete existing team member relationships
+      await prisma.serviceTeamMember.deleteMany({
+        where: { serviceId: id }
+      });
+
+      // Create new team member relationships if teamMemberIds are provided
+      if (teamMemberIds && teamMemberIds.length > 0) {
+        const teamLinks = teamMemberIds.map((teamMemberId: string) => ({
+          serviceId: id,
+          teamMemberId: teamMemberId
+        }));
+
+        await prisma.serviceTeamMember.createMany({
+          data: teamLinks
+        });
+      }
+    }
+
+    // Return the updated service with category and team member information
     const serviceWithCategories = await prisma.service.findUnique({
       where: { id },
       include: {
         categoryLinks: {
           include: {
             category: true
+          }
+        },
+        teamLinks: {
+          include: {
+            teamMember: true
           }
         }
       }

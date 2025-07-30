@@ -9,7 +9,15 @@ datasource db {
 
 model User {
   id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  email           String     @unique
+  email           String?
+  name            String?
+  phone           String?
+  company         String?
+  country         String?
+  address         String?
+  city            String?
+  state           String?
+  zipCode         String?
   hashedPassword  String?
   bookings        Booking[]
   business        Business?  @relation("UserBusiness") // no fields/references here
@@ -37,6 +45,7 @@ model Service {
   name          String
   duration      Int
   price         Float?
+  isHidden      Boolean             @default(false)
   businessId    String              @db.ObjectId
   business      Business            @relation(fields: [businessId], references: [id])
   bookings      Booking[]

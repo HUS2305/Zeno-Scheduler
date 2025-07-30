@@ -1,17 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import AppointmentModal from "./AppointmentModal";
+import AppointmentEditModal from "./AppointmentEditModal";
 
 interface Booking {
   id: string;
   date: Date;
+  time?: string;
   service: {
+    id: string;
     name: string;
-    duration?: number;
+    duration: number;
+    price?: number;
   };
   user: {
-    email: string;
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
   };
+  teamMember?: {
+    id: string;
+    name: string;
+  };
+  note?: string;
 }
 
 interface InteractiveCalendarProps {
@@ -21,6 +34,7 @@ interface InteractiveCalendarProps {
   weekBookings: Booking[];
   bookingsByDay: Record<string, Booking[]>;
   onWeekChange?: (startDate: Date, endDate: Date) => void;
+  onAppointmentCreated?: () => void;
 }
 
 export default function InteractiveCalendar({
@@ -30,10 +44,15 @@ export default function InteractiveCalendar({
   weekBookings,
   bookingsByDay,
   onWeekChange,
+  onAppointmentCreated,
 }: InteractiveCalendarProps) {
   const [selectedSlot, setSelectedSlot] = useState<{ date: Date; booking?: Booking } | null>(null);
   const [hoveredSlot, setHoveredSlot] = useState<{ date: Date; hour: number; minute: number } | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedDateTime, setSelectedDateTime] = useState<{ date: Date; time: string } | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   // Update current time every minute
   useEffect(() => {
@@ -73,13 +92,20 @@ export default function InteractiveCalendar({
 
   const handleSlotClick = (date: Date, booking?: Booking) => {
     if (booking) {
-      alert(`Edit booking: ${booking.service.name} at ${date.toLocaleString()}`);
-      console.log("Edit booking:", booking);
-      // TODO: Open edit modal
+      // Format time for the edit modal
+      const timeString = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      const bookingWithTime = {
+        ...booking,
+        date: date,
+        time: timeString
+      };
+      setSelectedBooking(bookingWithTime);
+      setShowEditModal(true);
     } else {
-      alert(`Create new booking at ${date.toLocaleString()}`);
-      console.log("Create new booking at:", date);
-      // TODO: Open create modal
+      // Format time for the modal
+      const timeString = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      setSelectedDateTime({ date, time: timeString });
+      setShowAppointmentModal(true);
     }
     setSelectedSlot({ date, booking });
   };
@@ -111,6 +137,16 @@ export default function InteractiveCalendar({
     const newEndOfWeek = new Date(newStartOfWeek);
     newEndOfWeek.setDate(newStartOfWeek.getDate() + 6);
     onWeekChange?.(newStartOfWeek, newEndOfWeek);
+  };
+
+  const handleAppointmentCreated = () => {
+    console.log("Appointment created, refreshing data...");
+    onAppointmentCreated?.();
+  };
+
+  const handleAppointmentUpdated = () => {
+    console.log("Appointment updated, refreshing data...");
+    onAppointmentCreated?.();
   };
 
   return (
@@ -227,66 +263,115 @@ export default function InteractiveCalendar({
               })}
             </div>
             
-            {/* Day Columns */}
-            {weekDays.map((day, dayIndex) => (
-              <div key={day.toDateString()} className={`border-r border-gray-200 ${dayIndex === weekDays.length - 1 ? '' : ''} relative`}>
-                {Array.from({ length: 96 }, (_, i) => {
-                  const totalMinutes = i * 15;
-                  const hour = Math.floor(totalMinutes / 60); // Start from 12 AM (0)
-                  const minute = totalMinutes % 60;
-                  
-                  const timeSlot = new Date(day);
-                  timeSlot.setHours(hour, minute, 0, 0);
-                  
-                  const bookings = bookingsByDay[day.toDateString()] || [];
-                  const hasBooking = bookings.some(booking => {
-                    const bookingDate = new Date(booking.date);
-                    return bookingDate.toDateString() === timeSlot.toDateString() &&
-                           bookingDate.getHours() === hour &&
-                           bookingDate.getMinutes() === minute;
-                  });
-                  
-                  const isClickable = !hasBooking && hour >= 0 && hour < 24; // Full day range
-                  
-                  const isHovered = hoveredSlot && 
-                    hoveredSlot.date.toDateString() === timeSlot.toDateString() && 
-                    hoveredSlot.hour === hour &&
-                    hoveredSlot.minute === minute;
-                  
-                  return (
-                    <div 
-                      key={i} 
-                      className={`h-6 relative cursor-pointer transition-all duration-200 ${
-                        minute === 0 ? 'border-t border-gray-200' : 'border-t border-gray-100'
-                      } ${
-                        hasBooking 
-                          ? "bg-blue-100 hover:bg-blue-200" 
-                          : isClickable 
-                            ? isHovered 
-                              ? "bg-white rounded-md shadow-sm" 
-                              : "hover:bg-gray-50" 
-                            : "bg-gray-50"
-                      } ${!isClickable ? "cursor-not-allowed" : ""}`}
-                      style={isHovered && isClickable ? { border: '0.05px solid black', borderRadius: '6px' } : {}}
-                      onMouseEnter={() => isClickable && setHoveredSlot({ date: timeSlot, hour, minute })}
-                      onMouseLeave={() => setHoveredSlot(null)}
-                      onClick={() => isClickable && handleSlotClick(timeSlot, hasBooking ? bookings.find(b => {
-                        const bookingDate = new Date(b.date);
-                        return bookingDate.toDateString() === timeSlot.toDateString() &&
-                               bookingDate.getHours() === hour &&
-                               bookingDate.getMinutes() === minute;
-                      }) : undefined)}
-                    >
-                      {isHovered && isClickable && (
-                        <div className="absolute inset-0 flex items-center justify-start px-2 text-xs text-black pointer-events-none">
-                          {`${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:${minute.toString().padStart(2, '0')}${hour >= 12 ? 'PM' : 'AM'}`}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                         {/* Day Columns */}
+             {weekDays.map((day, dayIndex) => (
+               <div key={day.toDateString()} className={`border-r border-gray-200 ${dayIndex === weekDays.length - 1 ? '' : ''} relative`}>
+                 {/* Render individual time slots for hover effects and click handling */}
+                 {Array.from({ length: 96 }, (_, i) => {
+                   const totalMinutes = i * 15;
+                   const hour = Math.floor(totalMinutes / 60);
+                   const minute = totalMinutes % 60;
+                   
+                   const timeSlot = new Date(day);
+                   timeSlot.setHours(hour, minute, 0, 0);
+                   
+                   const bookings = bookingsByDay[day.toDateString()] || [];
+                   
+                   // Find if this time slot is part of any booking
+                   const currentBooking = bookings.find(booking => {
+                     const bookingDate = new Date(booking.date);
+                     const bookingStartTime = new Date(bookingDate);
+                     const bookingEndTime = new Date(bookingDate);
+                     bookingEndTime.setMinutes(bookingEndTime.getMinutes() + booking.service.duration);
+                     
+                     return bookingDate.toDateString() === timeSlot.toDateString() &&
+                            timeSlot >= bookingStartTime &&
+                            timeSlot < bookingEndTime;
+                   });
+                   
+                   const hasBooking = !!currentBooking;
+                   
+                   const isClickable = hour >= 0 && hour < 24;
+                   
+                   const isHovered = hoveredSlot && 
+                     hoveredSlot.date.toDateString() === timeSlot.toDateString() && 
+                     hoveredSlot.hour === hour &&
+                     hoveredSlot.minute === minute;
+                   
+                   return (
+                     <div 
+                       key={i} 
+                       className={`h-6 relative cursor-pointer transition-all duration-200 ${
+                         minute === 0 ? 'border-t border-gray-200' : 'border-t border-gray-100'
+                       } ${
+                         hasBooking 
+                           ? "hover:bg-blue-200" 
+                           : isClickable 
+                             ? isHovered 
+                               ? "bg-white rounded-md shadow-sm" 
+                               : "hover:bg-gray-50" 
+                             : "bg-gray-50"
+                       }`}
+                       style={isHovered && isClickable ? { border: '0.05px solid black', borderRadius: '6px' } : {}}
+                       onMouseEnter={() => isClickable && setHoveredSlot({ date: timeSlot, hour, minute })}
+                       onMouseLeave={() => setHoveredSlot(null)}
+                       onClick={() => isClickable && handleSlotClick(timeSlot, currentBooking)}
+                     >
+                       {isHovered && isClickable && !hasBooking && (
+                         <div className="absolute inset-0 flex items-center justify-start px-2 text-xs text-black pointer-events-none">
+                           {`${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:${minute.toString().padStart(2, '0')}${hour >= 12 ? 'PM' : 'AM'}`}
+                         </div>
+                       )}
+                     </div>
+                   );
+                 })}
+                 
+                 {/* Render appointment blocks as overlays */}
+                 {bookingsByDay[day.toDateString()]?.map((booking) => {
+                   const bookingDate = new Date(booking.date);
+                   const startHour = bookingDate.getHours();
+                   const startMinute = bookingDate.getMinutes();
+                   
+                   // Calculate position and height
+                   const startSlot = (startHour * 60 + startMinute) / 15; // Convert to 15-minute slots
+                   const durationSlots = booking.service.duration / 15; // Convert duration to 15-minute slots
+                   
+                   const topPosition = startSlot * 24; // 24px per slot
+                   const height = durationSlots * 24; // 24px per slot
+                   
+                   return (
+                     <div
+                       key={booking.id}
+                       className="absolute left-0 right-0 bg-blue-100 hover:bg-blue-200 cursor-pointer transition-colors rounded-sm border-l-4 border-blue-500"
+                       style={{
+                         top: `${topPosition}px`,
+                         height: `${height}px`,
+                         zIndex: 10
+                       }}
+                       onClick={() => {
+                         const timeString = `${bookingDate.getHours().toString().padStart(2, '0')}:${bookingDate.getMinutes().toString().padStart(2, '0')}`;
+                         const bookingWithTime = {
+                           ...booking,
+                           date: bookingDate,
+                           time: timeString
+                         };
+                         setSelectedBooking(bookingWithTime);
+                         setShowEditModal(true);
+                       }}
+                     >
+                       <div className="flex flex-col justify-center h-full px-2 pointer-events-none">
+                         <div className="text-xs font-medium text-blue-900 truncate">
+                           {booking.service.name}
+                         </div>
+                         <div className="text-xs text-blue-700 truncate">
+                           {booking.user.name}
+                         </div>
+                       </div>
+                     </div>
+                   );
+                 })}
+               </div>
+             ))}
             
             {/* Current Time Indicator */}
             {isCurrentTimeVisible && (
@@ -301,6 +386,33 @@ export default function InteractiveCalendar({
           </div>
         </div>
       </div>
+
+      {/* Appointment Modal */}
+      {selectedDateTime && (
+        <AppointmentModal
+          isOpen={showAppointmentModal}
+          onClose={() => {
+            setShowAppointmentModal(false);
+            setSelectedDateTime(null);
+          }}
+          selectedDate={selectedDateTime.date}
+          selectedTime={selectedDateTime.time}
+          onAppointmentCreated={handleAppointmentCreated}
+        />
+      )}
+
+      {/* Appointment Edit Modal */}
+      {selectedBooking && (
+        <AppointmentEditModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedBooking(null);
+          }}
+          booking={selectedBooking}
+          onAppointmentUpdated={handleAppointmentUpdated}
+        />
+      )}
     </div>
   );
 } 

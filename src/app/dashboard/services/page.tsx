@@ -31,11 +31,20 @@ interface Service {
   description?: string;
   icon?: string;
   isActive?: boolean;
+  isHidden?: boolean;
   categoryLinks?: Array<{
     categoryId: string;
     category: {
       id: string;
       name: string;
+    };
+  }>;
+  teamLinks?: Array<{
+    teamMemberId: string;
+    teamMember: {
+      id: string;
+      name: string;
+      email?: string;
     };
   }>;
 }
@@ -66,6 +75,7 @@ export default function ServicesPage() {
   const [editCategoryName, setEditCategoryName] = useState("");
   const [selectedServicesForEdit, setSelectedServicesForEdit] = useState<string[]>([]);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
+  const [serviceDropdownOpen, setServiceDropdownOpen] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -86,13 +96,16 @@ export default function ServicesPage() {
       if (categoryDropdownOpen) {
         setCategoryDropdownOpen(null);
       }
+      if (serviceDropdownOpen) {
+        setServiceDropdownOpen(null);
+      }
     };
 
     document.addEventListener('click', handleClickOutside);
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [categoryDropdownOpen]);
+  }, [categoryDropdownOpen, serviceDropdownOpen]);
 
   // Update category counts when services change
   useEffect(() => {
@@ -197,6 +210,57 @@ export default function ServicesPage() {
   const handleCancelDelete = () => {
     setShowDeleteModal(false);
     setServiceToDelete(null);
+  };
+
+  const handleDuplicateService = async (serviceId: string) => {
+    try {
+      const response = await fetch("/api/services/duplicate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ serviceId }),
+      });
+
+      if (response.ok) {
+        // Refresh services to show the new duplicated service
+        await fetchServices();
+        setServiceDropdownOpen(null);
+      } else {
+        setError("Failed to duplicate service");
+      }
+    } catch (error) {
+      console.error("Error duplicating service:", error);
+      setError("Failed to duplicate service");
+    }
+  };
+
+  const handleToggleHidden = async (serviceId: string) => {
+    try {
+      const response = await fetch("/api/services/toggle-hidden", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ serviceId }),
+      });
+
+      if (response.ok) {
+        // Refresh services to show updated hidden status
+        await fetchServices();
+        setServiceDropdownOpen(null);
+      } else {
+        setError("Failed to toggle service visibility");
+      }
+    } catch (error) {
+      console.error("Error toggling service visibility:", error);
+      setError("Failed to toggle service visibility");
+    }
+  };
+
+  const handleEditService = (service: Service) => {
+    router.push(`/dashboard/services/${service.id}`);
+    setServiceDropdownOpen(null);
   };
 
   const handleCreateCategory = async () => {
@@ -515,13 +579,13 @@ export default function ServicesPage() {
                 />
               </div>
             </div>
-            <button
-              onClick={handleCreateService}
-              className="ml-3 flex items-center px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Create Service
-            </button>
+                         <button
+               onClick={handleCreateService}
+               className="ml-3 flex items-center px-3 py-1.5 bg-black text-white rounded-full hover:bg-gray-800 transition-colors text-sm"
+             >
+               <Plus className="h-3.5 w-3.5 mr-1.5" />
+               Create Service
+             </button>
           </div>
 
           {/* Services List */}
@@ -530,7 +594,7 @@ export default function ServicesPage() {
               <p className="text-gray-500 mb-3 text-sm">No services found</p>
               <button
                 onClick={handleCreateService}
-                className="px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm"
+                className="px-3 py-1.5 bg-black text-white rounded-full hover:bg-gray-800 transition-colors text-sm"
               >
                 Create your first service
               </button>
@@ -552,6 +616,11 @@ export default function ServicesPage() {
                       service={service}
                       onClick={() => handleServiceClick(service)}
                       onDelete={() => handleDeleteService(service.id)}
+                      onDuplicate={handleDuplicateService}
+                      onToggleHidden={handleToggleHidden}
+                      onEdit={handleEditService}
+                      serviceDropdownOpen={serviceDropdownOpen}
+                      setServiceDropdownOpen={setServiceDropdownOpen}
                     />
                   ))}
                 </div>
@@ -851,11 +920,26 @@ export default function ServicesPage() {
    );
  }
 
-function SortableServiceBlock({ service, onClick, onDelete, isHighlighted }: {
+function SortableServiceBlock({ 
+  service, 
+  onClick, 
+  onDelete, 
+  onDuplicate,
+  onToggleHidden,
+  onEdit,
+  isHighlighted,
+  serviceDropdownOpen,
+  setServiceDropdownOpen
+}: {
   service: Service;
   onClick: () => void;
   onDelete: () => void;
+  onDuplicate: (serviceId: string) => void;
+  onToggleHidden: (serviceId: string) => void;
+  onEdit: (service: Service) => void;
   isHighlighted?: boolean;
+  serviceDropdownOpen: string | null;
+  setServiceDropdownOpen: (serviceId: string | null) => void;
 }) {
   const {
     attributes,
@@ -878,7 +962,7 @@ function SortableServiceBlock({ service, onClick, onDelete, isHighlighted }: {
       style={style}
       className={`bg-white rounded-md shadow-sm border transition-all hover:shadow-md ${
         isHighlighted ? 'border-yellow-300 border-l-4' : 'border-gray-200'
-      } ${isDragging ? 'shadow-lg' : ''}`}
+      } ${isDragging ? 'shadow-lg' : ''} ${service.isHidden ? 'opacity-60' : ''}`}
     >
       <div className="flex items-center p-3">
         {/* Drag Handle */}
@@ -904,60 +988,133 @@ function SortableServiceBlock({ service, onClick, onDelete, isHighlighted }: {
           <p className="text-xs text-gray-500">
             {service.duration} mins · {service.price === 0 ? 'Free' : `$${service.price}`}
           </p>
-                     {/* Display multiple categories */}
-           {service.categoryLinks && service.categoryLinks.length > 0 && (
-             <div className="flex flex-wrap gap-1 mt-1">
-               {service.categoryLinks.slice(0, 2).map((link, index) => (
-                 <span 
-                   key={link.categoryId}
-                   className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-black text-white"
-                 >
-                   {link.category.name}
-                 </span>
-               ))}
-               {service.categoryLinks.length > 2 && (
-                 <span 
-                   className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-200 text-gray-700"
-                   title={service.categoryLinks.slice(2).map(link => link.category.name).join(', ')}
-                 >
-                   +{service.categoryLinks.length - 2}
-                 </span>
-               )}
-             </div>
-           )}
+          {/* Display multiple categories */}
+          {service.categoryLinks && service.categoryLinks.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {service.categoryLinks.slice(0, 2).map((link, index) => (
+                <span 
+                  key={link.categoryId}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-black text-white"
+                >
+                  {link.category.name}
+                </span>
+              ))}
+              {service.categoryLinks.length > 2 && (
+                <span 
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-200 text-gray-700"
+                  title={service.categoryLinks.slice(2).map(link => link.category.name).join(', ')}
+                >
+                  +{service.categoryLinks.length - 2}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Action Icons */}
-        <div className="flex items-center space-x-1">
-          <button 
-            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Users className="h-3.5 w-3.5 text-gray-500" />
-          </button>
-          <button 
-            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Share className="h-3.5 w-3.5 text-gray-500" />
-          </button>
-          <button 
-            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Link className="h-3.5 w-3.5 text-gray-500" />
-          </button>
-          <button 
-            className="p-1.5 hover:bg-red-100 text-red-600 rounded-md transition-colors"
+        {/* Team Member Profiles */}
+        <div className="flex items-center mr-3">
+          {service.teamLinks && service.teamLinks.length > 0 && (
+            <div className="flex items-center -space-x-1">
+              {service.teamLinks.slice(0, 2).map((link, index) => (
+                <div
+                  key={link.teamMemberId}
+                  className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center border-2 border-white"
+                  title={link.teamMember.name}
+                >
+                  <span className="text-xs font-medium text-gray-700">
+                    {link.teamMember.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              ))}
+              {service.teamLinks.length > 2 && (
+                <div
+                  className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center border-2 border-white"
+                  title={service.teamLinks.slice(2).map(link => link.teamMember.name).join(', ')}
+                >
+                  <span className="text-xs font-medium text-gray-600">
+                    +{service.teamLinks.length - 2}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Three-dot Menu */}
+        <div className="relative">
+          <button
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              setServiceDropdownOpen(serviceDropdownOpen === service.id ? null : service.id);
             }}
+            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
           >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+            <MoreVertical className="h-3.5 w-3.5 text-gray-500" />
           </button>
+          
+          {/* Dropdown Menu */}
+          {serviceDropdownOpen === service.id && (
+            <div className="absolute right-0 top-8 z-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(service);
+                }}
+                className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
+              >
+                <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDuplicate(service.id);
+                }}
+                className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
+              >
+                <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Duplicate
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
+              >
+                <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete
+              </button>
+              <div className="border-t border-gray-100 my-1"></div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleHidden(service.id);
+                }}
+                className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center justify-between"
+              >
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                  </svg>
+                  Set to hidden
+                </div>
+                <div className={`w-4 h-2 rounded-full transition-colors ${
+                  service.isHidden ? 'bg-black' : 'bg-gray-300'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full bg-white transition-transform ${
+                    service.isHidden ? 'translate-x-2' : 'translate-x-0'
+                  }`}></div>
+                </div>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
