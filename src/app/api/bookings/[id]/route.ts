@@ -63,19 +63,19 @@ export async function PUT(
     const appointmentDate = new Date(date);
     appointmentDate.setHours(hours, minutes, 0, 0);
 
-    // Check for conflicts (excluding the current booking)
-    const conflictingBooking = await prisma.booking.findFirst({
-      where: { 
-        date: appointmentDate, 
-        serviceId: serviceId, 
-        teamMemberId: providerId || null, 
-        id: { not: id } 
-      }
-    });
+    // Remove conflict checking to allow overlapping appointments
+    // const conflictingBooking = await prisma.booking.findFirst({
+    //   where: { 
+    //     date: appointmentDate, 
+    //     serviceId: serviceId, 
+    //     teamMemberId: providerId || null, 
+    //     id: { not: id } 
+    //   }
+    // });
 
-    if (conflictingBooking) {
-      return NextResponse.json({ error: "There is already a booking at this time" }, { status: 400 });
-    }
+    // if (conflictingBooking) {
+    //   return NextResponse.json({ error: "There is already a booking at this time" }, { status: 400 });
+    // }
 
     const updatedBooking = await prisma.booking.update({
       where: { id: id },

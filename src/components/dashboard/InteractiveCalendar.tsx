@@ -4,6 +4,25 @@ import { useState, useEffect } from "react";
 import AppointmentModal from "./AppointmentModal";
 import AppointmentEditModal from "./AppointmentEditModal";
 
+// Color theme options
+const colorOptions = [
+  { name: "blue", value: "#3B82F6", light: "#DBEAFE", medium: "#93C5FD", dark: "#1E40AF" },
+  { name: "red", value: "#EF4444", light: "#FEE2E2", medium: "#FCA5A5", dark: "#B91C1C" },
+  { name: "green", value: "#10B981", light: "#D1FAE5", medium: "#6EE7B7", dark: "#047857" },
+  { name: "purple", value: "#8B5CF6", light: "#EDE9FE", medium: "#C4B5FD", dark: "#5B21B6" },
+  { name: "orange", value: "#F97316", light: "#FED7AA", medium: "#FDBA74", dark: "#C2410C" },
+  { name: "pink", value: "#EC4899", light: "#FCE7F3", medium: "#F9A8D4", dark: "#BE185D" },
+  { name: "yellow", value: "#EAB308", light: "#FEF3C7", medium: "#FDE047", dark: "#A16207" },
+  { name: "teal", value: "#14B8A6", light: "#CCFBF1", medium: "#5EEAD4", dark: "#0F766E" },
+  { name: "gray", value: "#6B7280", light: "#F3F4F6", medium: "#D1D5DB", dark: "#374151" },
+];
+
+// Helper function to get color values
+const getColorValues = (colorName: string) => {
+  const color = colorOptions.find(c => c.name === colorName);
+  return color ? { main: color.value, light: color.light, medium: color.medium, dark: color.dark } : { main: "#3B82F6", light: "#DBEAFE", medium: "#93C5FD", dark: "#1E40AF" };
+};
+
 interface Booking {
   id: string;
   date: Date;
@@ -13,6 +32,7 @@ interface Booking {
     name: string;
     duration: number;
     price?: number;
+    colorTheme?: string;
   };
   user: {
     id: string;
@@ -126,18 +146,7 @@ export default function InteractiveCalendar({
     onWeekChange?.(newStartOfWeek, newEndOfWeek);
   };
 
-  const handleToday = () => {
-    const today = new Date();
-    // Adjust to start week on Monday (0 = Sunday, 1 = Monday, etc.)
-    const dayOfWeek = today.getDay();
-    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // If Sunday, subtract 6 to get to Monday
-    const newStartOfWeek = new Date(today);
-    newStartOfWeek.setDate(today.getDate() - daysToSubtract);
-    newStartOfWeek.setHours(0, 0, 0, 0);
-    const newEndOfWeek = new Date(newStartOfWeek);
-    newEndOfWeek.setDate(newStartOfWeek.getDate() + 6);
-    onWeekChange?.(newStartOfWeek, newEndOfWeek);
-  };
+
 
   const handleAppointmentCreated = () => {
     console.log("Appointment created, refreshing data...");
@@ -161,7 +170,7 @@ export default function InteractiveCalendar({
           <span className="text-sm font-medium text-gray-900">hussain aljarrah</span>
         </div>
 
-        {/* Center - Week picker and Today button */}
+        {/* Center - Week picker */}
         <div className="flex items-center space-x-3">
           <button 
             onClick={handlePreviousWeek}
@@ -182,23 +191,15 @@ export default function InteractiveCalendar({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
-          <button 
-            onClick={handleToday}
-            className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors font-medium"
-          >
-            Today
-          </button>
         </div>
 
-        {/* Right side - Share button */}
+        {/* Right side - Book appointment button */}
         <div className="flex items-center space-x-3">
-          <button className="p-2 hover:bg-gray-50 rounded-md transition-colors">
-            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-          </button>
-          <button className="px-4 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors font-medium">
-            Share
+          <button 
+            onClick={() => setShowAppointmentModal(true)}
+            className="px-3 py-1.5 bg-black text-white rounded-xl text-xs font-medium hover:bg-gray-800 transition-colors"
+          >
+            Book appointment
           </button>
         </div>
       </div>
@@ -327,49 +328,127 @@ export default function InteractiveCalendar({
                  })}
                  
                  {/* Render appointment blocks as overlays */}
-                 {bookingsByDay[day.toDateString()]?.map((booking) => {
-                   const bookingDate = new Date(booking.date);
-                   const startHour = bookingDate.getHours();
-                   const startMinute = bookingDate.getMinutes();
+                 {(() => {
+                   const dayBookings = bookingsByDay[day.toDateString()] || [];
                    
-                   // Calculate position and height
-                   const startSlot = (startHour * 60 + startMinute) / 15; // Convert to 15-minute slots
-                   const durationSlots = booking.service.duration / 15; // Convert duration to 15-minute slots
+                   // Group overlapping appointments
+                   const overlappingGroups: Booking[][] = [];
+                   const processedBookings = new Set<string>();
                    
-                   const topPosition = startSlot * 24; // 24px per slot
-                   const height = durationSlots * 24; // 24px per slot
+                   dayBookings.forEach((booking) => {
+                     if (processedBookings.has(booking.id)) return;
+                     
+                     const bookingDate = new Date(booking.date);
+                     const bookingStart = bookingDate.getTime();
+                     const bookingEnd = bookingStart + (booking.service.duration * 60 * 1000);
+                     
+                     const overlappingGroup = [booking];
+                     processedBookings.add(booking.id);
+                     
+                     // Find all overlapping appointments
+                     dayBookings.forEach((otherBooking) => {
+                       if (processedBookings.has(otherBooking.id)) return;
+                       
+                       const otherBookingDate = new Date(otherBooking.date);
+                       const otherBookingStart = otherBookingDate.getTime();
+                       const otherBookingEnd = otherBookingStart + (otherBooking.service.duration * 60 * 1000);
+                       
+                       // Check if appointments overlap
+                       if (bookingStart < otherBookingEnd && bookingEnd > otherBookingStart) {
+                         overlappingGroup.push(otherBooking);
+                         processedBookings.add(otherBooking.id);
+                       }
+                     });
+                     
+                     if (overlappingGroup.length > 0) {
+                       // Sort by creation time (using ID as proxy for creation order)
+                       overlappingGroup.sort((a, b) => a.id.localeCompare(b.id));
+                       overlappingGroups.push(overlappingGroup);
+                     }
+                   });
                    
-                   return (
-                     <div
-                       key={booking.id}
-                       className="absolute left-0 right-0 bg-blue-100 hover:bg-blue-200 cursor-pointer transition-colors rounded-sm border-l-4 border-blue-500"
-                       style={{
+                   return overlappingGroups.map((group, groupIndex) => 
+                     group.map((booking, bookingIndex) => {
+                       const bookingDate = new Date(booking.date);
+                       const startHour = bookingDate.getHours();
+                       const startMinute = bookingDate.getMinutes();
+                       
+                       // Calculate position and height
+                       const startSlot = (startHour * 60 + startMinute) / 15; // Convert to 15-minute slots
+                       const durationSlots = booking.service.duration / 15; // Convert duration to 15-minute slots
+                       
+                       const topPosition = startSlot * 24; // 24px per slot
+                       const height = durationSlots * 24; // 24px per slot
+                       
+                       // Calculate dynamic width and offset for cascading effect
+                       const totalOverlaps = group.length;
+                       
+                       let appointmentStyle: React.CSSProperties = {
                          top: `${topPosition}px`,
                          height: `${height}px`,
-                         zIndex: 10
-                       }}
-                       onClick={() => {
-                         const timeString = `${bookingDate.getHours().toString().padStart(2, '0')}:${bookingDate.getMinutes().toString().padStart(2, '0')}`;
-                         const bookingWithTime = {
-                           ...booking,
-                           date: bookingDate,
-                           time: timeString
-                         };
-                         setSelectedBooking(bookingWithTime);
-                         setShowEditModal(true);
-                       }}
-                     >
-                       <div className="flex flex-col justify-center h-full px-2 pointer-events-none">
-                         <div className="text-xs font-medium text-blue-900 truncate">
-                           {booking.service.name}
+                         zIndex: 10 + bookingIndex
+                       };
+                       
+                       if (totalOverlaps === 1) {
+                         // Single appointment: full width
+                         appointmentStyle.left = '0px';
+                         appointmentStyle.right = '0px';
+                       } else {
+                         // Multiple overlapping appointments: all aligned to the right, progressively narrower
+                         const offset = 100 / totalOverlaps; // Offset based on total number of appointments
+                         const width = 100 - (bookingIndex * offset); // Each appointment gets narrower
+                         
+                         appointmentStyle.left = 'auto';
+                         appointmentStyle.right = '0px';
+                         appointmentStyle.width = `${width}%`;
+                       }
+                       
+                       const colors = getColorValues(booking.service.colorTheme || "blue");
+                       
+                       return (
+                         <div
+                           key={booking.id}
+                           className="absolute cursor-pointer transition-colors rounded-sm border border-white"
+                           style={{
+                             ...appointmentStyle,
+                             backgroundColor: colors.light,
+                           }}
+                           onMouseEnter={(e) => {
+                             e.currentTarget.style.backgroundColor = colors.medium;
+                           }}
+                           onMouseLeave={(e) => {
+                             e.currentTarget.style.backgroundColor = colors.light;
+                           }}
+                           onClick={() => {
+                             const timeString = `${bookingDate.getHours().toString().padStart(2, '0')}:${bookingDate.getMinutes().toString().padStart(2, '0')}`;
+                             const bookingWithTime = {
+                               ...booking,
+                               date: bookingDate,
+                               time: timeString
+                             };
+                             setSelectedBooking(bookingWithTime);
+                             setShowEditModal(true);
+                           }}
+                         >
+                           {/* Colored left border overlay */}
+                           <div 
+                             className="absolute left-0 top-0 bottom-0 w-1 rounded-l-sm"
+                             style={{ backgroundColor: colors.main }}
+                           ></div>
+                           
+                           <div className="flex flex-col justify-center h-full px-2 pointer-events-none">
+                             <div className="text-xs font-medium truncate" style={{ color: colors.dark }}>
+                               {booking.service.name}
+                             </div>
+                             <div className="text-xs truncate" style={{ color: colors.main }}>
+                               {booking.user.name}
+                             </div>
+                           </div>
                          </div>
-                         <div className="text-xs text-blue-700 truncate">
-                           {booking.user.name}
-                         </div>
-                       </div>
-                     </div>
+                       );
+                     })
                    );
-                 })}
+                 })()}
                </div>
              ))}
             
@@ -388,15 +467,15 @@ export default function InteractiveCalendar({
       </div>
 
       {/* Appointment Modal */}
-      {selectedDateTime && (
+      {showAppointmentModal && (
         <AppointmentModal
           isOpen={showAppointmentModal}
           onClose={() => {
             setShowAppointmentModal(false);
             setSelectedDateTime(null);
           }}
-          selectedDate={selectedDateTime.date}
-          selectedTime={selectedDateTime.time}
+          selectedDate={selectedDateTime?.date || new Date()}
+          selectedTime={selectedDateTime?.time || "09:00"}
           onAppointmentCreated={handleAppointmentCreated}
         />
       )}

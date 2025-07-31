@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import AppointmentModal from "@/components/dashboard/AppointmentModal";
+import AppointmentEditModal from "@/components/dashboard/AppointmentEditModal";
 
 interface Customer {
   id: string;
@@ -31,6 +32,41 @@ interface Customer {
       name: string;
     };
   }>;
+}
+
+// Color theme options
+const colorOptions = [
+  { name: "blue", value: "#3B82F6", light: "#DBEAFE", medium: "#93C5FD", dark: "#1E40AF" },
+  { name: "red", value: "#EF4444", light: "#FEE2E2", medium: "#FCA5A5", dark: "#B91C1C" },
+  { name: "green", value: "#10B981", light: "#D1FAE5", medium: "#6EE7B7", dark: "#047857" },
+  { name: "purple", value: "#8B5CF6", light: "#EDE9FE", medium: "#C4B5FD", dark: "#5B21B6" },
+  { name: "orange", value: "#F97316", light: "#FED7AA", medium: "#FDBA74", dark: "#C2410C" },
+  { name: "pink", value: "#EC4899", light: "#FCE7F3", medium: "#F9A8D4", dark: "#BE185D" },
+  { name: "yellow", value: "#EAB308", light: "#FEF3C7", medium: "#FDE047", dark: "#A16207" },
+  { name: "teal", value: "#14B8A6", light: "#CCFBF1", medium: "#5EEAD4", dark: "#0F766E" },
+  { name: "gray", value: "#6B7280", light: "#F3F4F6", medium: "#D1D5DB", dark: "#374151" },
+];
+
+// Helper function to get color values
+const getColorValues = (colorName: string) => {
+  const color = colorOptions.find(c => c.name === colorName);
+  return color ? { main: color.value, light: color.light, medium: color.medium, dark: color.dark } : { main: "#3B82F6", light: "#DBEAFE", medium: "#93C5FD", dark: "#1E40AF" };
+};
+
+interface Appointment {
+  id: string;
+  date: string;
+  service: {
+    id: string;
+    name: string;
+    duration: number;
+    price?: number;
+    colorTheme?: string;
+  };
+  teamMember?: {
+    id: string;
+    name: string;
+  };
 }
 
 export default function CustomersPage() {
@@ -66,10 +102,24 @@ export default function CustomersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [error, setError] = useState("");
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState<string | null>(null);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState("");
+  
+  // New state for appointments tab
+  const [activeTab, setActiveTab] = useState("about");
+  const [customerAppointments, setCustomerAppointments] = useState<{
+    today: Appointment[];
+    thisWeek: Appointment[];
+  }>({ today: [], thisWeek: [] });
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
+  
+  // State for appointment editing
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Check if form has been modified
   const hasChanges = () => {
@@ -111,18 +161,25 @@ export default function CustomersPage() {
   }, [session, status, router]);
 
   // Close dropdown when clicking outside
-              useEffect(() => {
-              const handleClickOutside = (event: MouseEvent) => {
-                if (customerDropdownOpen && !(event.target as Element).closest('.relative')) {
-                  setCustomerDropdownOpen(null);
-                }
-              };
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customerDropdownOpen && !(event.target as Element).closest('.relative')) {
+        setCustomerDropdownOpen(null);
+      }
+    };
 
-              document.addEventListener('mousedown', handleClickOutside);
-              return () => {
-                document.removeEventListener('mousedown', handleClickOutside);
-              };
-            }, [customerDropdownOpen]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [customerDropdownOpen]);
+
+  // Fetch customer appointments when appointments tab is selected
+  useEffect(() => {
+    if (activeTab === "appointments" && selectedCustomer) {
+      fetchCustomerAppointments();
+    }
+  }, [activeTab, selectedCustomer]);
 
   const fetchCustomers = async () => {
     try {
@@ -144,9 +201,29 @@ export default function CustomersPage() {
     }
   };
 
+  const fetchCustomerAppointments = async () => {
+    if (!selectedCustomer) return;
+    
+    setLoadingAppointments(true);
+    try {
+      const response = await fetch(`/api/customers/${selectedCustomer.id}/appointments`);
+      if (response.ok) {
+        const data = await response.json();
+        setCustomerAppointments(data);
+      } else {
+        console.error("Failed to fetch customer appointments");
+      }
+    } catch (error) {
+      console.error("Error fetching customer appointments:", error);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  };
+
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setError(""); // Clear any previous errors
 
     try {
       const response = await fetch("/api/customers", {
@@ -157,17 +234,18 @@ export default function CustomersPage() {
         body: JSON.stringify(newCustomer),
       });
 
-             if (response.ok) {
-         setShowAddModal(false);
-         setNewCustomer({ name: "", email: "", phone: "", company: "", country: "", address: "", city: "", state: "", zipCode: "" });
-         fetchCustomers(); // Refresh the list
-       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to create customer");
+      if (response.ok) {
+        setShowAddModal(false);
+        setError(""); // Clear error on success
+        setNewCustomer({ name: "", email: "", phone: "", company: "", country: "", address: "", city: "", state: "", zipCode: "" });
+        fetchCustomers(); // Refresh the list
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to create customer");
       }
     } catch (error) {
       console.error("Error creating customer:", error);
-      alert("Failed to create customer");
+      setError("Failed to create customer");
     } finally {
       setSubmitting(false);
     }
@@ -176,6 +254,7 @@ export default function CustomersPage() {
   const handleEditCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setError(""); // Clear any previous errors
 
     try {
       const response = await fetch(`/api/customers/${selectedCustomer?.id}`, {
@@ -194,15 +273,16 @@ export default function CustomersPage() {
         
         setShowAddModal(false);
         setIsEditing(false);
+        setError(""); // Clear error on success
         setNewCustomer({ name: "", email: "", phone: "", company: "", country: "", address: "", city: "", state: "", zipCode: "" });
         fetchCustomers(); // Refresh the list
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to update customer");
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to update customer");
       }
     } catch (error) {
       console.error("Error updating customer:", error);
-      alert("Failed to update customer");
+      setError("Failed to update customer");
     } finally {
       setSubmitting(false);
     }
@@ -224,6 +304,7 @@ export default function CustomersPage() {
       setNewCustomer(customerData);
       setOriginalCustomerData(customerData);
       setIsEditing(true);
+      setError(""); // Clear error when opening edit modal
       setShowAddModal(true);
     }
   };
@@ -237,6 +318,7 @@ export default function CustomersPage() {
     setShowUnsavedChangesModal(false);
     setShowAddModal(false);
     setIsEditing(false);
+    setError(""); // Clear error when discarding
     setNewCustomer({ name: "", email: "", phone: "", company: "", country: "", address: "", city: "", state: "", zipCode: "" });
   };
 
@@ -321,10 +403,70 @@ export default function CustomersPage() {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const formatAppointmentTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatAppointmentDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString([], { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
   const formatPrice = (price?: number) => {
     if (!price) return "Free";
     return `$${price}`;
   };
+
+  const handleAppointmentClick = (appointment: Appointment) => {
+    // Convert the appointment to the format expected by AppointmentEditModal
+    const bookingWithTime = {
+      id: appointment.id,
+      date: new Date(appointment.date),
+      time: formatAppointmentTime(appointment.date),
+      service: {
+        id: appointment.service.id || "",
+        name: appointment.service.name,
+        duration: appointment.service.duration,
+        price: appointment.service.price,
+      },
+      user: {
+        id: selectedCustomer?.id || "",
+        name: selectedCustomer?.name || "",
+        email: selectedCustomer?.email || "",
+        phone: selectedCustomer?.phone || "",
+      },
+      teamMember: appointment.teamMember ? {
+        id: appointment.teamMember.id || "",
+        name: appointment.teamMember.name,
+      } : undefined,
+      note: "",
+    };
+    
+    setSelectedBooking(bookingWithTime);
+    setShowEditModal(true);
+  };
+
+  const handleAppointmentUpdated = () => {
+    setShowEditModal(false);
+    setSelectedBooking(null);
+    // Refresh appointments if the appointments tab is active
+    if (activeTab === "appointments") {
+      fetchCustomerAppointments();
+    }
+  };
+
+  // Filter customers based on search term
+  const filteredCustomers = customers.filter(customer => {
+    const searchLower = searchTerm.toLowerCase();
+    const nameMatch = customer.name?.toLowerCase().includes(searchLower);
+    const emailMatch = customer.email?.toLowerCase().includes(searchLower);
+    return nameMatch || emailMatch;
+  });
 
   if (status === "loading" || loading) {
     return (
@@ -356,7 +498,10 @@ export default function CustomersPage() {
                </button>
              </div>
              <button
-               onClick={() => setShowAddModal(true)}
+               onClick={() => {
+                 setError(""); // Clear error when opening add modal
+                 setShowAddModal(true);
+               }}
                className="w-6 h-6 bg-black text-white rounded-full hover:bg-gray-800 transition-colors flex items-center justify-center"
              >
                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -374,25 +519,34 @@ export default function CustomersPage() {
                <input
                  type="text"
                  placeholder="Search"
-                 className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-xs"
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+                 className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-xs text-gray-900 placeholder-gray-500"
                />
              </div>
            </div>
 
                      {/* Customer List */}
            <div className="space-y-1.5">
-             {customers.length === 0 ? (
+             {filteredCustomers.length === 0 ? (
                <div className="text-center py-6">
-                 <p className="text-gray-500 mb-2 text-xs">No customers yet</p>
-                 <button
-                   onClick={() => setShowAddModal(true)}
-                   className="px-2.5 py-1 bg-black text-white rounded-full hover:bg-gray-800 transition-colors text-xs"
-                 >
-                   Add Customer
-                 </button>
+                 <p className="text-gray-500 mb-2 text-xs">
+                   {customers.length === 0 ? "No customers yet" : "No customers found"}
+                 </p>
+                 {customers.length === 0 && (
+                   <button
+                     onClick={() => {
+                       setError(""); // Clear error when opening add modal
+                       setShowAddModal(true);
+                     }}
+                     className="px-2.5 py-1 bg-black text-white rounded-full hover:bg-gray-800 transition-colors text-xs"
+                   >
+                     Add Customer
+                   </button>
+                 )}
                </div>
              ) : (
-               customers.map((customer) => (
+               filteredCustomers.map((customer) => (
                  <div
                    key={customer.id}
                    onClick={() => setSelectedCustomer(customer)}
@@ -480,7 +634,7 @@ export default function CustomersPage() {
               </div>
                    <button 
                      onClick={handleBookAppointment}
-                     className="px-3 py-1.5 border border-gray-300 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                     className="px-3 py-1.5 bg-black text-white rounded-xl text-xs font-medium hover:bg-gray-800 transition-colors"
                    >
                      Book appointment
                    </button>
@@ -491,23 +645,32 @@ export default function CustomersPage() {
                          {/* Tabs */}
              <div className="bg-white border-b border-gray-200">
                <div className="flex space-x-6 px-4">
-                 <button className="text-xs font-medium text-black border-b-2 border-black py-3">
+                 <button 
+                   onClick={() => setActiveTab("about")}
+                   className={`text-xs font-medium py-3 border-b-2 transition-colors ${
+                     activeTab === "about" 
+                       ? "text-black border-black" 
+                       : "text-gray-600 hover:text-gray-800 border-transparent"
+                   }`}
+                 >
                    About
                  </button>
-                 <button className="text-xs font-medium text-gray-600 hover:text-gray-800 py-3">
-                   Notes
-                 </button>
-                 <button className="text-xs font-medium text-gray-600 hover:text-gray-800 py-3">
+                 <button 
+                   onClick={() => setActiveTab("appointments")}
+                   className={`text-xs font-medium py-3 border-b-2 transition-colors ${
+                     activeTab === "appointments" 
+                       ? "text-black border-black" 
+                       : "text-gray-600 hover:text-gray-800 border-transparent"
+                   }`}
+                 >
                    Appointments
-                 </button>
-                 <button className="text-xs font-medium text-gray-600 hover:text-gray-800 py-3">
-                   Updates
                  </button>
                </div>
              </div>
 
-                                                   {/* Content */}
-                             <div className="p-4">
+             {/* Content */}
+             <div className="p-4">
+               {activeTab === "about" && (
                  <div className="space-y-4">
                    {/* Phone */}
                    <div className="flex items-center space-x-3 text-xs">
@@ -553,25 +716,124 @@ export default function CustomersPage() {
                      </div>
                    )}
                    
-                                      {/* Address - only show if exists */}
-                    {(selectedCustomer.address || selectedCustomer.city || selectedCustomer.state || selectedCustomer.zipCode) && (
-                      <div className="flex items-center space-x-3 text-xs">
-                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="text-gray-900">
-                          {[
-                            selectedCustomer.address,
-                            selectedCustomer.city,
-                            selectedCustomer.state,
-                            selectedCustomer.zipCode
-                          ].filter(Boolean).join(", ")}
-                        </span>
-                      </div>
-                    )}
+                   {/* Address - only show if exists */}
+                   {(selectedCustomer.address || selectedCustomer.city || selectedCustomer.state || selectedCustomer.zipCode) && (
+                     <div className="flex items-center space-x-3 text-xs">
+                       <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                       </svg>
+                       <span className="text-gray-900">
+                         {[
+                           selectedCustomer.address,
+                           selectedCustomer.city,
+                           selectedCustomer.state,
+                           selectedCustomer.zipCode
+                         ].filter(Boolean).join(", ")}
+                       </span>
+                     </div>
+                   )}
                  </div>
-               </div>
+               )}
+
+               {activeTab === "appointments" && (
+                 <div className="space-y-4">
+                   {loadingAppointments ? (
+                     <div className="flex items-center justify-center py-6">
+                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>
+                     </div>
+                   ) : (
+                     <>
+                       {/* Today's Appointments */}
+                       <div>
+                         <h3 className="text-xs font-medium text-gray-900 mb-2">Today</h3>
+                         {customerAppointments.today.length === 0 ? (
+                           <div className="text-center py-4 bg-gray-50 rounded-lg">
+                             <p className="text-gray-500 text-xs">No appointments for today</p>
+                           </div>
+                         ) : (
+                           <div className="space-y-1.5">
+                             {customerAppointments.today.map((appointment) => {
+                               const colors = getColorValues(appointment.service.colorTheme || "blue");
+                               return (
+                                 <div 
+                                   key={appointment.id} 
+                                   className="bg-white border border-gray-200 rounded-lg p-2 cursor-pointer hover:bg-gray-50 transition-colors relative"
+                                   onClick={() => handleAppointmentClick(appointment)}
+                                 >
+                                   {/* Colored left border */}
+                                   <div
+                                     className="absolute left-0 top-0 bottom-0 w-1 rounded-l-lg"
+                                     style={{ backgroundColor: colors.main }}
+                                   ></div>
+                                   <div className="flex items-center justify-between pl-1">
+                                     <div className="flex-1">
+                                       <h4 className="text-xs font-medium text-gray-900">{appointment.service.name}</h4>
+                                       <p className="text-xs text-gray-500">{formatAppointmentTime(appointment.date)}</p>
+                                       {appointment.teamMember && (
+                                         <p className="text-xs text-gray-500">with {appointment.teamMember.name}</p>
+                                       )}
+                                     </div>
+                                     <div className="text-right">
+                                       <p className="text-xs font-medium text-gray-900">{formatPrice(appointment.service.price)}</p>
+                                       <p className="text-xs text-gray-500">{appointment.service.duration} min</p>
+                                     </div>
+                                   </div>
+                                 </div>
+                               );
+                             })}
+                           </div>
+                         )}
+                       </div>
+
+                       {/* This Week's Appointments */}
+                       <div>
+                         <h3 className="text-xs font-medium text-gray-900 mb-2">This Week</h3>
+                         {customerAppointments.thisWeek.length === 0 ? (
+                           <div className="text-center py-4 bg-gray-50 rounded-lg">
+                             <p className="text-gray-500 text-xs">No appointments for this week</p>
+                           </div>
+                         ) : (
+                           <div className="space-y-1.5">
+                             {customerAppointments.thisWeek.map((appointment) => {
+                               const colors = getColorValues(appointment.service.colorTheme || "blue");
+                               return (
+                                 <div 
+                                   key={appointment.id} 
+                                   className="bg-white border border-gray-200 rounded-lg p-2 cursor-pointer hover:bg-gray-50 transition-colors relative"
+                                   onClick={() => handleAppointmentClick(appointment)}
+                                 >
+                                   {/* Colored left border */}
+                                   <div
+                                     className="absolute left-0 top-0 bottom-0 w-1 rounded-l-lg"
+                                     style={{ backgroundColor: colors.main }}
+                                   ></div>
+                                   <div className="flex items-center justify-between pl-1">
+                                     <div className="flex-1">
+                                       <h4 className="text-xs font-medium text-gray-900">{appointment.service.name}</h4>
+                                       <p className="text-xs text-gray-500">{formatAppointmentDate(appointment.date)} at {formatAppointmentTime(appointment.date)}</p>
+                                       {appointment.teamMember && (
+                                         <p className="text-xs text-gray-500">with {appointment.teamMember.name}</p>
+                                       )}
+                                     </div>
+                                     <div className="text-right">
+                                       <p className="text-xs font-medium text-gray-900">{formatPrice(appointment.service.price)}</p>
+                                       <p className="text-xs text-gray-500">{appointment.service.duration} min</p>
+                                     </div>
+                                   </div>
+                                 </div>
+                               );
+                             })}
+                           </div>
+                         )}
+                       </div>
+                     </>
+                   )}
+                 </div>
+               )}
+
+
+             </div>
           </div>
         ) : (
           <div className="h-full flex items-center justify-center">
@@ -593,6 +855,7 @@ export default function CustomersPage() {
                   } else {
                     setShowAddModal(false);
                     setIsEditing(false);
+                    setError(""); // Clear error when closing
                     setNewCustomer({ name: "", email: "", phone: "", company: "", country: "", address: "", city: "", state: "", zipCode: "" });
                   }
                 }}
@@ -607,6 +870,18 @@ export default function CustomersPage() {
                <h3 className="text-base font-semibold text-gray-900 mb-4">
                  {isEditing ? "Edit customer" : "Add customer"}
                </h3>
+               
+               {/* Error Alert */}
+               {error && (
+                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                   <div className="flex items-center">
+                     <svg className="w-3 h-3 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                     </svg>
+                     <p className="text-xs text-red-700">{error}</p>
+                   </div>
+                 </div>
+               )}
               
               <div className="flex gap-8 max-h-96 overflow-hidden">
                 {/* Left Section - Profile Picture and Name */}
@@ -1136,8 +1411,24 @@ export default function CustomersPage() {
                 preSelectedCustomer={selectedCustomer?.id}
                 onAppointmentCreated={() => {
                   setShowAppointmentModal(false);
-                  // Optionally refresh customer data to show new appointments
+                  // Refresh customer appointments if appointments tab is active
+                  if (activeTab === "appointments") {
+                    fetchCustomerAppointments();
+                  }
                 }}
+              />
+            )}
+
+            {/* Appointment Edit Modal */}
+            {showEditModal && selectedBooking && (
+              <AppointmentEditModal
+                isOpen={showEditModal}
+                onClose={() => {
+                  setShowEditModal(false);
+                  setSelectedBooking(null);
+                }}
+                booking={selectedBooking}
+                onAppointmentUpdated={handleAppointmentUpdated}
               />
             )}
      </div>

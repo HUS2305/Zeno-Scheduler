@@ -45,6 +45,7 @@ model Service {
   name          String
   duration      Int
   price         Float?
+  colorTheme    String?             @default("blue")
   isHidden      Boolean             @default(false)
   businessId    String              @db.ObjectId
   business      Business            @relation(fields: [businessId], references: [id])

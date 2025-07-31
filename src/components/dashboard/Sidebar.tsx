@@ -7,8 +7,6 @@ import { signOut, useSession } from "next-auth/react";
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: "📊" },
   { name: "Services", href: "/dashboard/services", icon: "📋" },
-  { name: "Team", href: "/dashboard/team", icon: "👥" },
-  { name: "Bookings", href: "/dashboard/bookings", icon: "📝" },
   { name: "Customers", href: "/dashboard/customers", icon: "😊" },
   { name: "Settings", href: "/dashboard/settings", icon: "⚙️" },
 ];

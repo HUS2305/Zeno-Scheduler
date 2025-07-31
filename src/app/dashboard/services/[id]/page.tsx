@@ -13,6 +13,7 @@ interface Service {
   icon?: string;
   isActive?: boolean;
   categoryId?: string;
+  colorTheme?: string;
 }
 
 interface Category {
@@ -26,6 +27,25 @@ interface TeamMember {
   name: string;
   email?: string;
 }
+
+// Color theme options
+const colorOptions = [
+  { name: "blue", value: "#3B82F6" },
+  { name: "red", value: "#EF4444" },
+  { name: "green", value: "#10B981" },
+  { name: "purple", value: "#8B5CF6" },
+  { name: "orange", value: "#F97316" },
+  { name: "pink", value: "#EC4899" },
+  { name: "yellow", value: "#EAB308" },
+  { name: "teal", value: "#14B8A6" },
+  { name: "gray", value: "#6B7280" },
+];
+
+// Helper function to get color value
+const getColorValue = (colorName: string): string => {
+  const color = colorOptions.find(c => c.name === colorName);
+  return color ? color.value : "#3B82F6"; // Default to blue
+};
 
 export default function ServiceEditPage() {
   const router = useRouter();
@@ -46,6 +66,7 @@ export default function ServiceEditPage() {
   const [showBufferTimeTooltip, setShowBufferTimeTooltip] = useState(false);
   const [showHiddenTooltip, setShowHiddenTooltip] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showColorDropdown, setShowColorDropdown] = useState(false);
   const [originalFormData, setOriginalFormData] = useState({
     name: "",
     description: "",
@@ -54,6 +75,7 @@ export default function ServiceEditPage() {
     price: 0,
     location: "",
     categoryIds: [] as string[],
+    colorTheme: "blue",
     isHidden: false,
   });
 
@@ -65,6 +87,7 @@ export default function ServiceEditPage() {
     price: 0,
     location: "",
     categoryIds: [] as string[],
+    colorTheme: "blue",
     isHidden: false,
   });
 
@@ -121,6 +144,7 @@ export default function ServiceEditPage() {
           price: serviceData.price || 0,
           location: "",
           categoryIds: categoryIds,
+          colorTheme: serviceData.colorTheme || "blue",
           isHidden: false,
         };
         setFormData(initialFormData);
@@ -391,22 +415,62 @@ export default function ServiceEditPage() {
               </div>
             </div>
 
-            {/* Title */}
+            {/* Title and Color Theme */}
             <div className="mb-4">
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Title *
               </label>
-                             <input
-                 type="text"
-                 value={formData.name}
-                 onChange={(e) => {
-                   const value = e.target.value;
-                   const capitalizedValue = value.charAt(0).toUpperCase() + value.slice(1);
-                   setFormData({...formData, name: capitalizedValue});
-                 }}
-                 className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 text-xs"
-                 placeholder="Service title"
-               />
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const capitalizedValue = value.charAt(0).toUpperCase() + value.slice(1);
+                    setFormData({...formData, name: capitalizedValue});
+                  }}
+                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-900 text-xs"
+                  placeholder="Service title"
+                />
+                                 <div className="relative">
+                   <button
+                     type="button"
+                     onClick={() => setShowColorDropdown(!showColorDropdown)}
+                     className="flex items-center justify-center w-8 h-8 border border-gray-300 rounded-md hover:bg-gray-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                   >
+                     <div 
+                       className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                       style={{ backgroundColor: getColorValue(formData.colorTheme) }}
+                     ></div>
+                   </button>
+                   
+                                       {showColorDropdown && (
+                      <div className="absolute top-full right-0 z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 min-w-[120px]">
+                        <div className="grid grid-cols-5 gap-2">
+                          {colorOptions.map((color) => (
+                            <button
+                              key={color.name}
+                              onClick={() => {
+                                setFormData({...formData, colorTheme: color.name});
+                                setShowColorDropdown(false);
+                              }}
+                              className="flex items-center justify-center p-1 rounded-md hover:bg-gray-50 transition-all duration-200"
+                            >
+                                                             <div 
+                                 className={`w-4 h-4 rounded-full border-2 transition-all duration-200 flex-shrink-0 ${
+                                   formData.colorTheme === color.name 
+                                     ? 'border-gray-400 shadow-md scale-110' 
+                                     : 'border-gray-200 hover:border-gray-300'
+                                 }`}
+                                 style={{ backgroundColor: color.value }}
+                               ></div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                 </div>
+              </div>
             </div>
 
             {/* Description */}

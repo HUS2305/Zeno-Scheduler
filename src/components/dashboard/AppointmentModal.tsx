@@ -3,11 +3,31 @@
 import { useState, useEffect } from "react";
 import DateTimePicker from "./DateTimePicker";
 
+// Color theme options
+const colorOptions = [
+  { name: "blue", value: "#3B82F6", light: "#DBEAFE", medium: "#93C5FD", dark: "#1E40AF" },
+  { name: "red", value: "#EF4444", light: "#FEE2E2", medium: "#FCA5A5", dark: "#B91C1C" },
+  { name: "green", value: "#10B981", light: "#D1FAE5", medium: "#6EE7B7", dark: "#047857" },
+  { name: "purple", value: "#8B5CF6", light: "#EDE9FE", medium: "#C4B5FD", dark: "#5B21B6" },
+  { name: "orange", value: "#F97316", light: "#FED7AA", medium: "#FDBA74", dark: "#C2410C" },
+  { name: "pink", value: "#EC4899", light: "#FCE7F3", medium: "#F9A8D4", dark: "#BE185D" },
+  { name: "yellow", value: "#EAB308", light: "#FEF3C7", medium: "#FDE047", dark: "#A16207" },
+  { name: "teal", value: "#14B8A6", light: "#CCFBF1", medium: "#5EEAD4", dark: "#0F766E" },
+  { name: "gray", value: "#6B7280", light: "#F3F4F6", medium: "#D1D5DB", dark: "#374151" },
+];
+
+// Helper function to get color values
+const getColorValues = (colorName: string) => {
+  const color = colorOptions.find(c => c.name === colorName);
+  return color ? { main: color.value, light: color.light, medium: color.medium, dark: color.dark } : { main: "#3B82F6", light: "#DBEAFE", medium: "#93C5FD", dark: "#1E40AF" };
+};
+
 interface Service {
   id: string;
   name: string;
   duration: number;
   price?: number;
+  colorTheme?: string;
   teamLinks?: {
     teamMember: {
       id: string;
@@ -212,12 +232,20 @@ export default function AppointmentModal({
                      onClick={() => setServiceDropdownOpen(!serviceDropdownOpen)}
                      className="w-full px-2 py-1.5 border border-gray-300 rounded-full text-xs text-left focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white flex items-center justify-between"
                    >
-                     <span className={selectedService ? "text-gray-900" : "text-gray-500"}>
-                       {selectedService 
-                         ? `${selectedServiceData?.name} (${selectedServiceData?.duration} min • $${selectedServiceData?.price || 0})`
-                         : "Select a service"
-                       }
-                     </span>
+                     <div className="flex items-center">
+                       {selectedServiceData && (
+                         <div
+                           className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
+                           style={{ backgroundColor: getColorValues(selectedServiceData.colorTheme || "blue").main }}
+                         ></div>
+                       )}
+                       <span className={selectedService ? "text-gray-900" : "text-gray-500"}>
+                         {selectedService 
+                           ? `${selectedServiceData?.name} (${selectedServiceData?.duration} min • $${selectedServiceData?.price || 0})`
+                           : "Select a service"
+                         }
+                       </span>
+                     </div>
                      <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                      </svg>
@@ -225,18 +253,25 @@ export default function AppointmentModal({
                    
                    {serviceDropdownOpen && (
                      <div className="absolute top-full left-0 right-0 mt-1 z-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-48 overflow-y-auto">
-                       {services.map((service) => (
-                         <button
-                           key={service.id}
-                           onClick={() => {
-                             setSelectedService(service.id);
-                             setServiceDropdownOpen(false);
-                           }}
-                           className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50"
-                         >
-                           {service.name} ({service.duration} min • ${service.price || 0})
-                         </button>
-                       ))}
+                       {services.map((service) => {
+                         const colors = getColorValues(service.colorTheme || "blue");
+                         return (
+                           <button
+                             key={service.id}
+                             onClick={() => {
+                               setSelectedService(service.id);
+                               setServiceDropdownOpen(false);
+                             }}
+                             className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
+                           >
+                             <div
+                               className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
+                               style={{ backgroundColor: colors.main }}
+                             ></div>
+                             {service.name} ({service.duration} min • ${service.price || 0})
+                           </button>
+                         );
+                       })}
                      </div>
                    )}
                  </div>

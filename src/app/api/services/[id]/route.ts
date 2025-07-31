@@ -70,7 +70,7 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const { name, duration, price, description, location, categoryIds, isHidden } = await request.json();
+    const { name, duration, price, description, location, categoryIds, isHidden, colorTheme } = await request.json();
 
     // Validate required fields
     if (!name || !duration) {
@@ -108,6 +108,7 @@ export async function PUT(
         name,
         duration,
         price: price || 0,
+        colorTheme: colorTheme || "blue",
       }
     });
 
