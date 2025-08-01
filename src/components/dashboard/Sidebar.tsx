@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
 
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: "📊" },
@@ -14,6 +15,27 @@ const navigation = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const [displayName, setDisplayName] = useState(session?.user?.name || session?.user?.email || "User");
+
+  useEffect(() => {
+    // Update display name when session changes
+    setDisplayName(session?.user?.name || session?.user?.email || "User");
+  }, [session?.user?.name, session?.user?.email]);
+
+  useEffect(() => {
+    // Listen for profile update events
+    const handleProfileUpdate = (event: CustomEvent) => {
+      if (event.detail?.name) {
+        setDisplayName(event.detail.name);
+      }
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('profileUpdated', handleProfileUpdate as EventListener);
+    };
+  }, []);
 
   return (
     <div className="w-56 bg-white border-r border-gray-200 flex flex-col">
@@ -82,12 +104,12 @@ export default function Sidebar() {
         <div className="flex items-center space-x-2 pt-2 border-t border-gray-200">
           <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
             <span className="text-xs font-medium text-gray-700">
-              {session?.user?.name?.[0] || session?.user?.email?.[0] || "U"}
+              {displayName[0] || "U"}
             </span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-gray-900 truncate">
-              {session?.user?.name || session?.user?.email || "User"}
+              {displayName}
             </p>
             <p className="text-xs text-gray-500">Business Owner</p>
           </div>

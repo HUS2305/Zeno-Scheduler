@@ -42,6 +42,16 @@ export default async function Home() {
                   </Link>
                 </div>
               </div>
+              
+              {/* Test Public Page Link */}
+              <div className="mt-4 text-center">
+                <Link
+                  href="/public"
+                  className="text-sm text-indigo-600 hover:text-indigo-500 underline"
+                >
+                  View Public Booking Page (Demo)
+                </Link>
+              </div>
             </div>
           </main>
         </div>

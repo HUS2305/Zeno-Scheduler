@@ -98,31 +98,81 @@ export default function SettingsClient() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Profile data state
+  // Profile data state - initialize with empty values to prevent flash of old data
   const [profileData, setProfileData] = useState({
-    name: "hussain aljarrah",
-    email: session?.user?.email || "hussainaljarrah45@gmail.com",
+    name: "",
+    email: "",
     phone: "",
-    company: "FJ ApS",
-    address: "Gunnekær 4, Rødovre, 2610",
+    company: "",
+    country: "",
+    address: "",
+    city: "",
+    state: "",
+    zipCode: "",
   });
   
   const [originalProfileData, setOriginalProfileData] = useState({
-    name: "hussain aljarrah",
-    email: session?.user?.email || "hussainaljarrah45@gmail.com",
+    name: "",
+    email: "",
     phone: "",
-    company: "FJ ApS",
-    address: "Gunnekær 4, Rødovre, 2610",
+    company: "",
+    country: "",
+    address: "",
+    city: "",
+    state: "",
+    zipCode: "",
   });
 
-  // Update email when session loads
+  // Fetch user profile data when component loads
   useEffect(() => {
-    if (session?.user?.email) {
-      setProfileData(prev => ({ ...prev, email: session.user.email || "" }));
-      setOriginalProfileData(prev => ({ ...prev, email: session.user.email || "" }));
+    const fetchUserProfile = async () => {
+      try {
+        const response = await fetch('/api/user/profile');
+        if (response.ok) {
+          const userData = await response.json();
+          const profileDataWithDefaults = {
+            name: userData.name || "",
+            email: userData.email || "",
+            phone: userData.phone || "",
+            company: userData.company || "",
+            country: userData.country || "",
+            address: userData.address || "",
+            city: userData.city || "",
+            state: userData.state || "",
+            zipCode: userData.zipCode || "",
+          };
+          setProfileData(profileDataWithDefaults);
+          setOriginalProfileData(profileDataWithDefaults);
+        }
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+        // Fallback to empty data if API call fails
+        const defaultData = {
+          name: "",
+          email: "",
+          phone: "",
+          company: "",
+          country: "",
+          address: "",
+          city: "",
+          state: "",
+          zipCode: "",
+        };
+        setProfileData(defaultData);
+        setOriginalProfileData(defaultData);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (session?.user?.id) {
+      fetchUserProfile();
+    } else {
+      setIsLoading(false);
     }
-  }, [session?.user?.email]);
+  }, [session?.user?.id]);
 
   const toggleManageCategory = (categoryId: string) => {
     setExpandedManageCategories(prev =>
@@ -162,14 +212,41 @@ export default function SettingsClient() {
     setError(""); // Clear any previous errors
 
     try {
-      // Simulate API call - replace with actual API endpoint
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Update the original data to reflect the changes
-      setOriginalProfileData(profileData);
-      setShowEditModal(false);
-      setIsEditing(false);
-      setError(""); // Clear error on success
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: profileData.name,
+          phone: profileData.phone,
+          company: profileData.company,
+          country: profileData.country,
+          address: profileData.address,
+          city: profileData.city,
+          state: profileData.state,
+          zipCode: profileData.zipCode,
+        }),
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        
+        // Update the original data to reflect the changes
+        setOriginalProfileData(profileData);
+        setShowEditModal(false);
+        setIsEditing(false);
+        setError(""); // Clear error on success
+        
+        // Force a session refresh to update the sidebar name
+        // Dispatch a custom event that the sidebar can listen to
+        window.dispatchEvent(new CustomEvent('profileUpdated', { 
+          detail: { name: profileData.name } 
+        }));
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to update profile");
+      }
     } catch (error) {
       console.error("Error updating profile:", error);
       setError("Failed to update profile");
@@ -184,7 +261,11 @@ export default function SettingsClient() {
       email: profileData.email,
       phone: profileData.phone,
       company: profileData.company,
+      country: profileData.country,
       address: profileData.address,
+      city: profileData.city,
+      state: profileData.state,
+      zipCode: profileData.zipCode,
     };
     setOriginalProfileData(currentData);
     setIsEditing(true);
@@ -287,19 +368,35 @@ export default function SettingsClient() {
       </div>
 
       {/* Right Column - Content Area */}
-      <div className="flex-1 p-4 pl-8">
+      <div className="flex-1 p-4 pl-8 relative">
+        {/* Edit Profile Button - Top Right Corner */}
+        {selectedCategory === "profile" && (
+          <button
+            onClick={handleEditClick}
+            className="absolute top-4 right-4 px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-xs font-medium z-10"
+          >
+            Edit Profile
+          </button>
+        )}
+        
         {selectedCategory === "profile" && (
           <div className="max-w-xl">
-            {/* Profile Header */}
-            <div className="flex items-center mb-4">
-              <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-lg font-semibold text-gray-600 mr-3">
-                H
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                <span className="ml-2 text-sm text-gray-600">Loading profile...</span>
               </div>
-              <div>
-                <h2 className="text-base font-semibold text-gray-900">{profileData.name}</h2>
-                <p className="text-xs text-gray-500">Sydals, 83, DK • 11:39 PM</p>
-              </div>
-            </div>
+            ) : (
+              <>
+                {/* Profile Header */}
+                <div className="flex items-center mb-4">
+                  <div className="flex items-center">
+                    <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-lg font-semibold text-gray-600 mr-3">
+                      {profileData.name ? profileData.name.charAt(0).toUpperCase() : "H"}
+                    </div>
+                    <h2 className="text-base font-semibold text-gray-900">{profileData.name || "Profile"}</h2>
+                  </div>
+                </div>
 
             {/* Navigation Tabs */}
             <div className="border-b border-gray-200 mb-4">
@@ -308,22 +405,10 @@ export default function SettingsClient() {
                   About
                 </button>
                 <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
-                  Integrations
-                </button>
-                <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
                   Services
                 </button>
                 <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
                   Working hours
-                </button>
-                <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
-                  Breaks
-                </button>
-                <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
-                  Time off
-                </button>
-                <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
-                  Updates
                 </button>
               </nav>
             </div>
@@ -364,38 +449,48 @@ export default function SettingsClient() {
                  )}
                </div>
                
-               {/* Company - only show if exists */}
-               {profileData.company && profileData.company.trim() !== "" && (
-                 <div className="flex items-center space-x-3 text-xs">
-                   <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                   </svg>
+               {/* Company */}
+               <div className="flex items-center space-x-3 text-xs">
+                 <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                 </svg>
+                 {profileData.company && profileData.company.trim() !== "" ? (
                    <span className="text-gray-900">{profileData.company}</span>
-                 </div>
-               )}
+                 ) : (
+                   <span 
+                     onClick={handleEditClick}
+                     className="text-gray-600 underline cursor-pointer hover:text-gray-800"
+                   >
+                     Add company
+                   </span>
+                 )}
+               </div>
                
-               {/* Address - only show if exists */}
-               {profileData.address && profileData.address.trim() !== "" && (
-                 <div className="flex items-center space-x-3 text-xs">
-                   <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                   </svg>
-                   <span className="text-gray-900">{profileData.address}</span>
-                 </div>
-               )}
-
-              {/* Edit Button */}
-              <div className="pt-2">
-                <button
-                  onClick={handleEditClick}
-                  className="px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-xs font-medium"
-                >
-                  Edit Profile
-                </button>
-              </div>
+               {/* Address */}
+               <div className="flex items-center space-x-3 text-xs">
+                 <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                 </svg>
+                 {(profileData.address && profileData.address.trim() !== "") || 
+                  (profileData.city && profileData.city.trim() !== "") || 
+                  (profileData.zipCode && profileData.zipCode.trim() !== "") ? (
+                   <span className="text-gray-900">
+                     {[profileData.address, profileData.city, profileData.zipCode].filter(Boolean).join(", ")}
+                   </span>
+                 ) : (
+                   <span 
+                     onClick={handleEditClick}
+                     className="text-gray-600 underline cursor-pointer hover:text-gray-800"
+                   >
+                     Add address
+                   </span>
+                 )}
+               </div>
             </div>
-          </div>
+            </>
+          )}
+        </div>
         )}
 
         {selectedCategory !== "profile" && (
@@ -578,25 +673,324 @@ export default function SettingsClient() {
                       </div>
                     </div>
                     
-                    {/* Address section */}
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">Address</h4>
-                      <div className="space-y-3">
-                        <div>
-                          <label htmlFor="address" className="block text-xs text-gray-700 mb-1">
-                            Address
-                          </label>
-                          <input
-                            type="text"
-                            id="address"
-                            value={profileData.address}
-                            onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
-                            className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
-                            placeholder="Enter full address"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                                         {/* Address section */}
+                     <div>
+                       <h4 className="text-sm font-medium text-gray-700 mb-3">Address</h4>
+                       <div className="space-y-3">
+                         <div>
+                           <label htmlFor="country" className="block text-xs text-gray-700 mb-1">
+                             Country
+                           </label>
+                           <select 
+                             value={profileData.country}
+                             onChange={(e) => setProfileData({ ...profileData, country: e.target.value })}
+                             className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent bg-white text-xs text-gray-900"
+                           >
+                             <option value="">Select a country</option>
+                             <option value="AF">Afghanistan</option>
+                             <option value="AL">Albania</option>
+                             <option value="DZ">Algeria</option>
+                             <option value="AS">American Samoa</option>
+                             <option value="AD">Andorra</option>
+                             <option value="AO">Angola</option>
+                             <option value="AI">Anguilla</option>
+                             <option value="AQ">Antarctica</option>
+                             <option value="AG">Antigua and Barbuda</option>
+                             <option value="AR">Argentina</option>
+                             <option value="AM">Armenia</option>
+                             <option value="AW">Aruba</option>
+                             <option value="AU">Australia</option>
+                             <option value="AT">Austria</option>
+                             <option value="AZ">Azerbaijan</option>
+                             <option value="BS">Bahamas</option>
+                             <option value="BH">Bahrain</option>
+                             <option value="BD">Bangladesh</option>
+                             <option value="BB">Barbados</option>
+                             <option value="BY">Belarus</option>
+                             <option value="BE">Belgium</option>
+                             <option value="BZ">Belize</option>
+                             <option value="BJ">Benin</option>
+                             <option value="BM">Bermuda</option>
+                             <option value="BT">Bhutan</option>
+                             <option value="BO">Bolivia</option>
+                             <option value="BA">Bosnia and Herzegovina</option>
+                             <option value="BW">Botswana</option>
+                             <option value="BV">Bouvet Island</option>
+                             <option value="BR">Brazil</option>
+                             <option value="IO">British Indian Ocean Territory</option>
+                             <option value="BN">Brunei Darussalam</option>
+                             <option value="BG">Bulgaria</option>
+                             <option value="BF">Burkina Faso</option>
+                             <option value="BI">Burundi</option>
+                             <option value="KH">Cambodia</option>
+                             <option value="CM">Cameroon</option>
+                             <option value="CA">Canada</option>
+                             <option value="CV">Cape Verde</option>
+                             <option value="KY">Cayman Islands</option>
+                             <option value="CF">Central African Republic</option>
+                             <option value="TD">Chad</option>
+                             <option value="CL">Chile</option>
+                             <option value="CN">China</option>
+                             <option value="CX">Christmas Island</option>
+                             <option value="CC">Cocos (Keeling) Islands</option>
+                             <option value="CO">Colombia</option>
+                             <option value="KM">Comoros</option>
+                             <option value="CG">Congo</option>
+                             <option value="CD">Congo, the Democratic Republic of the</option>
+                             <option value="CK">Cook Islands</option>
+                             <option value="CR">Costa Rica</option>
+                             <option value="CI">Côte d'Ivoire</option>
+                             <option value="HR">Croatia</option>
+                             <option value="CU">Cuba</option>
+                             <option value="CY">Cyprus</option>
+                             <option value="CZ">Czech Republic</option>
+                             <option value="DK">Denmark</option>
+                             <option value="DJ">Djibouti</option>
+                             <option value="DM">Dominica</option>
+                             <option value="DO">Dominican Republic</option>
+                             <option value="EC">Ecuador</option>
+                             <option value="EG">Egypt</option>
+                             <option value="SV">El Salvador</option>
+                             <option value="GQ">Equatorial Guinea</option>
+                             <option value="ER">Eritrea</option>
+                             <option value="EE">Estonia</option>
+                             <option value="ET">Ethiopia</option>
+                             <option value="FK">Falkland Islands (Malvinas)</option>
+                             <option value="FO">Faroe Islands</option>
+                             <option value="FJ">Fiji</option>
+                             <option value="FI">Finland</option>
+                             <option value="FR">France</option>
+                             <option value="GF">French Guiana</option>
+                             <option value="PF">French Polynesia</option>
+                             <option value="TF">French Southern Territories</option>
+                             <option value="GA">Gabon</option>
+                             <option value="GM">Gambia</option>
+                             <option value="GE">Georgia</option>
+                             <option value="DE">Germany</option>
+                             <option value="GH">Ghana</option>
+                             <option value="GI">Gibraltar</option>
+                             <option value="GR">Greece</option>
+                             <option value="GL">Greenland</option>
+                             <option value="GD">Grenada</option>
+                             <option value="GP">Guadeloupe</option>
+                             <option value="GU">Guam</option>
+                             <option value="GT">Guatemala</option>
+                             <option value="GG">Guernsey</option>
+                             <option value="GN">Guinea</option>
+                             <option value="GW">Guinea-Bissau</option>
+                             <option value="GY">Guyana</option>
+                             <option value="HT">Haiti</option>
+                             <option value="HM">Heard Island and McDonald Islands</option>
+                             <option value="VA">Holy See (Vatican City State)</option>
+                             <option value="HN">Honduras</option>
+                             <option value="HK">Hong Kong</option>
+                             <option value="HU">Hungary</option>
+                             <option value="IS">Iceland</option>
+                             <option value="IN">India</option>
+                             <option value="ID">Indonesia</option>
+                             <option value="IR">Iran, Islamic Republic of</option>
+                             <option value="IQ">Iraq</option>
+                             <option value="IE">Ireland</option>
+                             <option value="IM">Isle of Man</option>
+                             <option value="IL">Israel</option>
+                             <option value="IT">Italy</option>
+                             <option value="JM">Jamaica</option>
+                             <option value="JP">Japan</option>
+                             <option value="JE">Jersey</option>
+                             <option value="JO">Jordan</option>
+                             <option value="KZ">Kazakhstan</option>
+                             <option value="KE">Kenya</option>
+                             <option value="KI">Kiribati</option>
+                             <option value="KP">Korea, Democratic People's Republic of</option>
+                             <option value="KR">Korea, Republic of</option>
+                             <option value="KW">Kuwait</option>
+                             <option value="KG">Kyrgyzstan</option>
+                             <option value="LA">Lao People's Democratic Republic</option>
+                             <option value="LV">Latvia</option>
+                             <option value="LB">Lebanon</option>
+                             <option value="LS">Lesotho</option>
+                             <option value="LR">Liberia</option>
+                             <option value="LY">Libyan Arab Jamahiriya</option>
+                             <option value="LI">Liechtenstein</option>
+                             <option value="LT">Lithuania</option>
+                             <option value="LU">Luxembourg</option>
+                             <option value="MO">Macao</option>
+                             <option value="MK">Macedonia, the former Yugoslav Republic of</option>
+                             <option value="MG">Madagascar</option>
+                             <option value="MW">Malawi</option>
+                             <option value="MY">Malaysia</option>
+                             <option value="MV">Maldives</option>
+                             <option value="ML">Mali</option>
+                             <option value="MT">Malta</option>
+                             <option value="MH">Marshall Islands</option>
+                             <option value="MQ">Martinique</option>
+                             <option value="MR">Mauritania</option>
+                             <option value="MU">Mauritius</option>
+                             <option value="YT">Mayotte</option>
+                             <option value="MX">Mexico</option>
+                             <option value="FM">Micronesia, Federated States of</option>
+                             <option value="MD">Moldova, Republic of</option>
+                             <option value="MC">Monaco</option>
+                             <option value="MN">Mongolia</option>
+                             <option value="ME">Montenegro</option>
+                             <option value="MS">Montserrat</option>
+                             <option value="MA">Morocco</option>
+                             <option value="MZ">Mozambique</option>
+                             <option value="MM">Myanmar</option>
+                             <option value="NA">Namibia</option>
+                             <option value="NR">Nauru</option>
+                             <option value="NP">Nepal</option>
+                             <option value="NL">Netherlands</option>
+                             <option value="NC">New Caledonia</option>
+                             <option value="NZ">New Zealand</option>
+                             <option value="NI">Nicaragua</option>
+                             <option value="NE">Niger</option>
+                             <option value="NG">Nigeria</option>
+                             <option value="NU">Niue</option>
+                             <option value="NF">Norfolk Island</option>
+                             <option value="MP">Northern Mariana Islands</option>
+                             <option value="NO">Norway</option>
+                             <option value="OM">Oman</option>
+                             <option value="PK">Pakistan</option>
+                             <option value="PW">Palau</option>
+                             <option value="PS">Palestinian Territory, Occupied</option>
+                             <option value="PA">Panama</option>
+                             <option value="PG">Papua New Guinea</option>
+                             <option value="PY">Paraguay</option>
+                             <option value="PE">Peru</option>
+                             <option value="PH">Philippines</option>
+                             <option value="PN">Pitcairn</option>
+                             <option value="PL">Poland</option>
+                             <option value="PT">Portugal</option>
+                             <option value="PR">Puerto Rico</option>
+                             <option value="QA">Qatar</option>
+                             <option value="RE">Réunion</option>
+                             <option value="RO">Romania</option>
+                             <option value="RU">Russian Federation</option>
+                             <option value="RW">Rwanda</option>
+                             <option value="BL">Saint Barthélemy</option>
+                             <option value="SH">Saint Helena</option>
+                             <option value="KN">Saint Kitts and Nevis</option>
+                             <option value="LC">Saint Lucia</option>
+                             <option value="MF">Saint Martin (French part)</option>
+                             <option value="PM">Saint Pierre and Miquelon</option>
+                             <option value="VC">Saint Vincent and the Grenadines</option>
+                             <option value="WS">Samoa</option>
+                             <option value="SM">San Marino</option>
+                             <option value="ST">Sao Tome and Principe</option>
+                             <option value="SA">Saudi Arabia</option>
+                             <option value="SN">Senegal</option>
+                             <option value="RS">Serbia</option>
+                             <option value="SC">Seychelles</option>
+                             <option value="SL">Sierra Leone</option>
+                             <option value="SG">Singapore</option>
+                             <option value="SK">Slovakia</option>
+                             <option value="SI">Slovenia</option>
+                             <option value="SB">Solomon Islands</option>
+                             <option value="SO">Somalia</option>
+                             <option value="ZA">South Africa</option>
+                             <option value="GS">South Georgia and the South Sandwich Islands</option>
+                             <option value="ES">Spain</option>
+                             <option value="LK">Sri Lanka</option>
+                             <option value="SD">Sudan</option>
+                             <option value="SR">Suriname</option>
+                             <option value="SJ">Svalbard and Jan Mayen</option>
+                             <option value="SZ">Swaziland</option>
+                             <option value="SE">Sweden</option>
+                             <option value="CH">Switzerland</option>
+                             <option value="SY">Syrian Arab Republic</option>
+                             <option value="TW">Taiwan, Province of China</option>
+                             <option value="TJ">Tajikistan</option>
+                             <option value="TZ">Tanzania, United Republic of</option>
+                             <option value="TH">Thailand</option>
+                             <option value="TL">Timor-Leste</option>
+                             <option value="TG">Togo</option>
+                             <option value="TK">Tokelau</option>
+                             <option value="TO">Tonga</option>
+                             <option value="TT">Trinidad and Tobago</option>
+                             <option value="TN">Tunisia</option>
+                             <option value="TR">Turkey</option>
+                             <option value="TM">Turkmenistan</option>
+                             <option value="TC">Turks and Caicos Islands</option>
+                             <option value="TV">Tuvalu</option>
+                             <option value="UG">Uganda</option>
+                             <option value="UA">Ukraine</option>
+                             <option value="AE">United Arab Emirates</option>
+                             <option value="GB">United Kingdom</option>
+                             <option value="US">United States</option>
+                             <option value="UM">United States Minor Outlying Islands</option>
+                             <option value="UY">Uruguay</option>
+                             <option value="UZ">Uzbekistan</option>
+                             <option value="VU">Vanuatu</option>
+                             <option value="VE">Venezuela</option>
+                             <option value="VN">Viet Nam</option>
+                             <option value="VG">Virgin Islands, British</option>
+                             <option value="VI">Virgin Islands, U.S.</option>
+                             <option value="WF">Wallis and Futuna</option>
+                             <option value="EH">Western Sahara</option>
+                             <option value="YE">Yemen</option>
+                             <option value="ZM">Zambia</option>
+                             <option value="ZW">Zimbabwe</option>
+                           </select>
+                         </div>
+                         
+                         <div>
+                           <label htmlFor="address" className="block text-xs text-gray-700 mb-1">
+                             Address
+                           </label>
+                           <input
+                             type="text"
+                             id="address"
+                             value={profileData.address}
+                             onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+                             className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                             placeholder="Enter street name, apt, suite, floor"
+                           />
+                         </div>
+                         
+                         <div>
+                           <label htmlFor="city" className="block text-xs text-gray-700 mb-1">
+                             City
+                           </label>
+                           <input
+                             type="text"
+                             id="city"
+                             value={profileData.city}
+                             onChange={(e) => setProfileData({ ...profileData, city: e.target.value })}
+                             className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                             placeholder="Enter city"
+                           />
+                         </div>
+                         
+                         <div>
+                           <label htmlFor="state" className="block text-xs text-gray-700 mb-1">
+                             State
+                           </label>
+                           <input
+                             type="text"
+                             id="state"
+                             value={profileData.state}
+                             onChange={(e) => setProfileData({ ...profileData, state: e.target.value })}
+                             className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                             placeholder="Enter state"
+                           />
+                         </div>
+                         
+                         <div>
+                           <label htmlFor="zipCode" className="block text-xs text-gray-700 mb-1">
+                             Zip code
+                           </label>
+                           <input
+                             type="text"
+                             id="zipCode"
+                             value={profileData.zipCode}
+                             onChange={(e) => setProfileData({ ...profileData, zipCode: e.target.value })}
+                             className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                             placeholder="Enter zip code"
+                           />
+                         </div>
+                       </div>
+                     </div>
                   </form>
                 </div>
               </div>
