@@ -13,6 +13,19 @@ const navigation = [
 export default function DashboardNav() {
   const pathname = usePathname();
 
+  const handleSignOut = async () => {
+    try {
+      await signOut({ 
+        callbackUrl: "/",
+        redirect: true 
+      });
+    } catch (error) {
+      console.error("Sign out error:", error);
+      // Fallback redirect
+      window.location.href = "/";
+    }
+  };
+
   return (
     <nav className="bg-white shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -44,7 +57,7 @@ export default function DashboardNav() {
           </div>
           <div className="flex items-center">
             <button
-              onClick={() => signOut()}
+              onClick={handleSignOut}
               className="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
             >
               Sign out

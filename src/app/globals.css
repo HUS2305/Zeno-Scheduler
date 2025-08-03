@@ -119,48 +119,22 @@ body {
 .PhoneInputCountrySelect > select > option {
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
-  color: #374151 !important;
-  background: white !important;
+  color: #374151;
 }
 
-/* Selected and hovered options */
 .PhoneInputCountrySelect > select > option:checked,
 .PhoneInputCountrySelect > select > option:hover {
-  background-color: #000 !important;
-  color: white !important;
+  background-color: #f3f4f6;
 }
 
-/* Alternative approach - target the native select dropdown */
-select.PhoneInputCountrySelect {
-  border-radius: 0.375rem;
-  max-height: 120px;
-  overflow-y: auto;
+/* Fix for country dropdown in booking form */
+select[class*="border-gray-300"] {
+  max-height: 200px !important;
+  overflow-y: auto !important;
 }
 
-select.PhoneInputCountrySelect option {
-  color: #374151;
-  background: white;
-}
-
-select.PhoneInputCountrySelect option:checked,
-select.PhoneInputCountrySelect option:hover {
-  background-color: #000 !important;
-  color: white !important;
-}
-
-/* Force the dropdown to be smaller */
-.PhoneInputCountrySelect select {
-  max-height: 120px !important;
-  border-radius: 0.375rem !important;
-}
-
-.PhoneInputCountrySelect select option {
-  color: #374151 !important;
-  background: white !important;
-}
-
-.PhoneInputCountrySelect select option:checked,
-.PhoneInputCountrySelect select option:hover {
-  background-color: #000 !important;
-  color: white !important;
+/* Ensure dropdown doesn't extend beyond viewport */
+select {
+  max-height: 200px !important;
+  overflow-y: auto !important;
 }

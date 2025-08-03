@@ -37,6 +37,19 @@ export default function Sidebar() {
     };
   }, []);
 
+  const handleSignOut = async () => {
+    try {
+      await signOut({ 
+        callbackUrl: "/",
+        redirect: true 
+      });
+    } catch (error) {
+      console.error("Sign out error:", error);
+      // Fallback redirect
+      window.location.href = "/";
+    }
+  };
+
   return (
     <div className="w-56 bg-white border-r border-gray-200 flex flex-col">
       {/* Header */}
@@ -114,7 +127,7 @@ export default function Sidebar() {
             <p className="text-xs text-gray-500">Business Owner</p>
           </div>
           <button
-            onClick={() => signOut()}
+            onClick={handleSignOut}
             className="text-gray-400 hover:text-gray-600"
           >
             <span className="text-xs">🚪</span>
