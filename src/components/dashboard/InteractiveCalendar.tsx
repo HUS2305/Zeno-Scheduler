@@ -110,6 +110,9 @@ export default function InteractiveCalendar({
     return date;
   });
 
+  // Ensure days are in Monday to Sunday order
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
   const handleSlotClick = (date: Date, booking?: Booking) => {
     if (booking) {
       // Format time for the edit modal
@@ -220,7 +223,7 @@ export default function InteractiveCalendar({
                           {day.getDate()}
                         </div>
                         <span className="text-sm font-medium text-gray-900">
-                          {day.toLocaleDateString('en-US', { weekday: 'short' })}
+                          {dayNames[dayIndex]}
                         </span>
                       </>
                     ) : (
@@ -229,7 +232,7 @@ export default function InteractiveCalendar({
                           {day.getDate()}
                         </span>
                         <span className="text-sm font-medium text-gray-900">
-                          {day.toLocaleDateString('en-US', { weekday: 'short' })}
+                          {dayNames[dayIndex]}
                         </span>
                       </>
                     )}

@@ -6,7 +6,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 // GET - Fetch all bookings for the business
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -23,13 +23,29 @@ export async function GET() {
       return NextResponse.json({ error: "Business not found" }, { status: 404 });
     }
 
-    // Get all bookings for the business
+    // Get query parameters for date filtering
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    // Build the where clause
+    const whereClause: any = {
+      service: {
+        businessId: business.id
+      }
+    };
+
+    // Add date filtering if startDate and endDate are provided
+    if (startDate && endDate) {
+      whereClause.date = {
+        gte: new Date(startDate + 'T00:00:00.000Z'),
+        lte: new Date(endDate + 'T23:59:59.999Z')
+      };
+    }
+
+    // Get bookings for the business (filtered by date if provided)
     const bookings = await prisma.booking.findMany({
-      where: {
-        service: {
-          businessId: business.id
-        }
-      },
+      where: whereClause,
       include: {
         user: true,
         service: true,

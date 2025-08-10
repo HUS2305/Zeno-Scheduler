@@ -106,6 +106,7 @@ export default async function DetailsPage({
       teamMemberId={teamMemberId}
       selectedDate={date}
       selectedTime={time}
+      slug={slug}
     />
   );
 } 

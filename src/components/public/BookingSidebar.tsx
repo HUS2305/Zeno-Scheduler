@@ -30,7 +30,7 @@ export default function BookingSidebar({ business }: BookingSidebarProps) {
       {/* Book Button */}
       <button 
         onClick={() => window.location.href = `/b/${business.id}/book`}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mb-4"
+        className="w-full bg-black hover:bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg transition-colors mb-4"
       >
         Book
       </button>

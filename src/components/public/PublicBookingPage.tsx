@@ -38,6 +38,8 @@ interface Business {
   id: string;
   name: string;
   profilePic: string | null;
+  tagline?: string | null;
+  about?: string | null;
   services: Service[];
   team: TeamMember[];
   openingHours: OpeningHour[];
@@ -52,6 +54,8 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
   const [activeTab, setActiveTab] = useState("Services");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [liveTagline, setLiveTagline] = useState<string | null | undefined>(business.tagline);
+  const [liveAbout, setLiveAbout] = useState<string | null | undefined>(business.about);
 
   // Refs for smooth scrolling
   const servicesRef = useRef<HTMLDivElement>(null);
@@ -99,7 +103,32 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // On mount, read cookies (set by Settings save) to hydrate tagline/about after a full refresh
+  useEffect(() => {
+    try {
+      const readCookie = (name: string) => {
+        const match = document.cookie
+          .split('; ')
+          .find((row) => row.startsWith(name + '='));
+        if (!match) return null;
+        const value = decodeURIComponent(match.split('=')[1] || '');
+        return value && value.trim().length > 0 ? value : null;
+      };
+      const cookieTagline = readCookie('brand_tagline');
+      const cookieAbout = readCookie('brand_about');
+      if (cookieTagline !== null) setLiveTagline(cookieTagline);
+      if (cookieAbout !== null) setLiveAbout(cookieAbout);
+    } catch {}
+  }, []);
+
+  // Removed live cross-tab updates to require explicit refresh for changes to appear
+
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  const effectiveTagline = (liveTagline ?? business.tagline)?.trim() || null;
+  const effectiveAbout = (liveAbout ?? business.about)?.trim() || null;
+  const hasTagline = Boolean(effectiveTagline);
+  const hasAbout = Boolean(effectiveAbout);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -129,10 +158,12 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
              {/* Hero Section */}
        <div className="relative bg-white py-12 border-b border-gray-200">
          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-           <div className="text-center">
-             <h1 className="text-4xl font-bold text-gray-900 mb-3">{business.name}</h1>
-             <p className="text-lg text-gray-600">Professional services at your convenience</p>
-           </div>
+            <div className="text-center">
+              <h1 className={`${hasTagline ? 'text-4xl mb-3' : 'text-5xl mb-0'} font-bold text-gray-900`}>{business.name}</h1>
+              {hasTagline && (
+                <p className="text-lg text-gray-600">{effectiveTagline}</p>
+              )}
+            </div>
          </div>
        </div>
 
@@ -198,6 +229,14 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
                   </div>
                 </div>
               </div>
+
+              {/* About Section */}
+              {hasAbout && (
+                <div className="p-6 pt-0">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-2">About</h2>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{effectiveAbout}</p>
+                </div>
+              )}
             </div>
           </div>
 

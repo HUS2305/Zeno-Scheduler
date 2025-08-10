@@ -9,10 +9,10 @@ export default async function TimeSelectionPage({
   searchParams 
 }: { 
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ serviceId?: string; teamMemberId?: string }>;
+  searchParams: Promise<{ serviceId?: string; teamMemberId?: string; selectedDate?: string; selectedTime?: string }>;
 }) {
   const { slug } = await params;
-  const { serviceId, teamMemberId } = await searchParams;
+  const { serviceId, teamMemberId, selectedDate, selectedTime } = await searchParams;
 
   if (!serviceId) {
     notFound();
@@ -76,6 +76,8 @@ export default async function TimeSelectionPage({
       selectedTeamMember={selectedTeamMember}
       serviceId={serviceId}
       teamMemberId={teamMemberId}
+      selectedDate={selectedDate}
+      selectedTime={selectedTime}
     />
   );
 }

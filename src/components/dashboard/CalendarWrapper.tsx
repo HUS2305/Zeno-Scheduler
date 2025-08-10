@@ -6,13 +6,25 @@ import InteractiveCalendar from "./InteractiveCalendar";
 interface Booking {
   id: string;
   date: Date;
+  time?: string;
   service: {
+    id: string;
     name: string;
-    duration?: number;
+    duration: number;
+    price?: number;
+    colorTheme?: string;
   };
   user: {
-    email: string;
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
   };
+  teamMember?: {
+    id: string;
+    name: string;
+  };
+  note?: string;
 }
 
 export default function CalendarWrapper() {
@@ -22,7 +34,10 @@ export default function CalendarWrapper() {
   const today = new Date();
   const [currentStartOfWeek, setCurrentStartOfWeek] = useState(() => {
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay());
+    // Adjust to start week on Monday (0 = Sunday, 1 = Monday, etc.)
+    const dayOfWeek = today.getDay();
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // If Sunday, subtract 6 to get to Monday
+    startOfWeek.setDate(today.getDate() - daysToSubtract);
     startOfWeek.setHours(0, 0, 0, 0);
     return startOfWeek;
   });
@@ -36,19 +51,21 @@ export default function CalendarWrapper() {
 
   const fetchBookings = async () => {
     try {
-      const response = await fetch("/api/bookings");
+      // Format dates for API call
+      const startDate = currentStartOfWeek.toISOString().split('T')[0];
+      const endDate = currentEndOfWeek.toISOString().split('T')[0];
+      
+      console.log('Fetching bookings for week:', { startDate, endDate, currentStartOfWeek, currentEndOfWeek });
+      
+      const response = await fetch(`/api/bookings?startDate=${startDate}&endDate=${endDate}`);
       if (response.ok) {
         const bookings = await response.json();
         
-        // Filter bookings for current week
-        const weekBookings = bookings.filter((booking: any) => {
-          const bookingDate = new Date(booking.date);
-          return bookingDate >= currentStartOfWeek && bookingDate <= currentEndOfWeek;
-        });
+        console.log('Received bookings:', bookings.length);
         
         // Group bookings by day
         const bookingsByDay: Record<string, Booking[]> = {};
-        weekBookings.forEach((booking: any) => {
+        bookings.forEach((booking: any) => {
           const dateKey = new Date(booking.date).toDateString();
           if (!bookingsByDay[dateKey]) {
             bookingsByDay[dateKey] = [];
@@ -56,7 +73,9 @@ export default function CalendarWrapper() {
           bookingsByDay[dateKey].push(booking);
         });
         
-        setWeekBookings(weekBookings);
+        console.log('Bookings by day:', Object.keys(bookingsByDay).length);
+        
+        setWeekBookings(bookings);
         setBookingsByDay(bookingsByDay);
       }
     } catch (error) {

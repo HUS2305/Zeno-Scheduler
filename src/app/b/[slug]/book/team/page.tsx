@@ -31,5 +31,14 @@ export default async function TeamSelectionPage({
     notFound();
   }
 
-  return <TeamSelectionPageClient business={business} serviceId={serviceId} />;
+  // Fetch the selected service
+  const selectedService = await prisma.service.findFirst({
+    where: { id: serviceId },
+  });
+
+  if (!selectedService) {
+    notFound();
+  }
+
+  return <TeamSelectionPageClient business={business} serviceId={serviceId} selectedService={selectedService} />;
 }

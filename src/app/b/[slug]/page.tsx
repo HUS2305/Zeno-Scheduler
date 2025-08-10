@@ -1,8 +1,9 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import PublicBookingPage from "@/components/public/PublicBookingPage";
+import { cookies } from "next/headers";
 
-const prisma = new PrismaClient();
+export const dynamic = 'force-dynamic';
 
 interface PublicPageProps {
   params: {
@@ -11,47 +12,66 @@ interface PublicPageProps {
 }
 
 export default async function PublicPage({ params }: PublicPageProps) {
-  // For now, we'll use the first business - later we can add a slug field to Business model
-  const business = await prisma.business.findFirst({
-    where: {
-      // For now, we'll use the first business - you'll want to add a slug field
-      // slug: params.slug
-    },
+  // Resolve by slug if available, otherwise fall back to first business
+  const business = (await (prisma.business as any).findFirst({
+    where: { slug: params.slug },
     include: {
       services: {
         where: { isHidden: false },
         include: {
-          categoryLinks: {
-            include: {
-              category: true,
-            },
-          },
-          teamLinks: {
-            include: {
-              teamMember: true,
-            },
-          },
+          categoryLinks: { include: { category: true } },
+          teamLinks: { include: { teamMember: true } },
         },
         orderBy: { name: "asc" },
       },
-      team: {
-        orderBy: { name: "asc" },
-      },
-      openingHours: {
-        orderBy: { dayOfWeek: "asc" },
-      },
-      categories: {
-        include: {
-          serviceLinks: {
-            include: {
-              service: true,
-            },
-          },
-        },
-        orderBy: { name: "asc" },
-      },
+      team: { orderBy: { name: "asc" } },
+      openingHours: { orderBy: { dayOfWeek: "asc" } },
+      categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
     },
-  });
+  })) ||
+  (await prisma.business.findFirst({
+    include: {
+      services: {
+        where: { isHidden: false },
+        include: {
+          categoryLinks: { include: { category: true } },
+          teamLinks: { include: { teamMember: true } },
+        },
+        orderBy: { name: "asc" },
+      },
+      team: { orderBy: { name: "asc" } },
+      openingHours: { orderBy: { dayOfWeek: "asc" } },
+      categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
+    },
+  })) as any;
+
+  // Enrich with raw Mongo read to include fields not present in older Prisma client
+  let rawTagline: string | null = null;
+  let rawAbout: string | null = null;
+  try {
+    const raw = await (prisma as any).$runCommandRaw({
+      find: 'Business',
+      filter: { _id: { $oid: business.id } },
+      limit: 1,
+    });
+    const first = raw?.cursor?.firstBatch?.[0];
+    if (first) {
+      rawTagline = first.tagline ?? null;
+      rawAbout = first.about ?? null;
+    }
+  } catch (e) {
+    console.warn('Raw business read failed on public page:', e);
+  }
+
+  // Overlay cookie values (owner-side) over DB values; treat empty strings as null
+  const cookieStore = await cookies();
+  const cookieTaglineRaw = cookieStore.get('brand_tagline')?.value;
+  const cookieAboutRaw = cookieStore.get('brand_about')?.value;
+  const cookieTagline = cookieTaglineRaw && cookieTaglineRaw.trim().length > 0 ? cookieTaglineRaw : null;
+  const cookieAbout = cookieAboutRaw && cookieAboutRaw.trim().length > 0 ? cookieAboutRaw : null;
+
+  const tagline = cookieTagline ?? rawTagline ?? (business as any)?.tagline ?? null;
+  const about = cookieAbout ?? rawAbout ?? (business as any)?.about ?? null;
 
   if (!business) {
     notFound();
@@ -73,7 +93,7 @@ export default async function PublicPage({ params }: PublicPageProps) {
 
   return (
     <PublicBookingPage 
-      business={business}
+      business={{ ...business, tagline, about } as any}
       servicesByCategory={servicesByCategory}
     />
   );

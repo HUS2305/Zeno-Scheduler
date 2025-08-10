@@ -144,13 +144,12 @@ export default function BookingPageClient({ business, servicesByCategory }: Book
                     )}
                   </div>
                   <h3 className="text-base font-semibold text-gray-900 mb-1">{business.name}</h3>
-                  <p className="text-xs text-gray-600">5.0 ⭐ 7 reviews</p>
                 </div>
               </div>
 
-              {/* Appointment Summary */}
+              {/* Summary */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <h3 className="text-base font-semibold text-gray-900 mb-3">Appointment Summary</h3>
+                <h3 className="text-base font-semibold text-gray-900 mb-3">Summary</h3>
                
                <div className="space-y-3">
                  <div className="flex justify-between items-center">
@@ -159,16 +158,20 @@ export default function BookingPageClient({ business, servicesByCategory }: Book
                  </div>
                  <div className="flex justify-between items-center">
                    <span className="text-sm text-gray-600">Duration</span>
-                   <span className="text-sm font-medium text-gray-900">-</span>
+                   <span className="text-sm font-medium text-gray-900">Not selected</span>
                  </div>
                  <div className="flex justify-between items-center">
                    <span className="text-sm text-gray-600">Provider</span>
-                   <span className="text-sm font-medium text-gray-900">-</span>
+                   <span className="text-sm font-medium text-gray-900">Not selected</span>
                  </div>
-                                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Date & Time</span>
-                    <span className="text-sm font-medium text-gray-900">-</span>
-                  </div>
+                 <div className="flex justify-between items-center">
+                   <span className="text-sm text-gray-600">Date & Time</span>
+                   <span className="text-sm font-medium text-gray-900">Not selected</span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <span className="text-sm text-gray-600">Price</span>
+                   <span className="text-sm font-medium text-gray-900">Not selected</span>
+                 </div>
                </div>
              </div>
            </div>

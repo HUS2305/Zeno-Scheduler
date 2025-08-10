@@ -28,6 +28,13 @@ model Business {
   id           String     @id @default(auto()) @map("_id") @db.ObjectId
   name         String
   profilePic   String?
+  // Public booking page slug (e.g., "the-crew"). Used to form /b/[slug]
+  slug         String?
+  // Short marketing phrase shown on public page hero
+  tagline      String?
+  // Industry classification and longer description
+  industry     String?
+  about        String?
   ownerId      String     @unique @db.ObjectId
   owner        User       @relation("UserBusiness", fields: [ownerId], references: [id])
   services     Service[]

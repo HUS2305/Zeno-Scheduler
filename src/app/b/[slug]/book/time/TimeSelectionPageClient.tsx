@@ -35,6 +35,8 @@ interface TimeSelectionPageClientProps {
   selectedTeamMember?: TeamMember;
   serviceId: string;
   teamMemberId?: string;
+  selectedDate?: string;
+  selectedTime?: string;
 }
 
 export default function TimeSelectionPageClient({ 
@@ -42,11 +44,28 @@ export default function TimeSelectionPageClient({
   selectedService, 
   selectedTeamMember,
   serviceId,
-  teamMemberId
+  teamMemberId,
+  selectedDate,
+  selectedTime
 }: TimeSelectionPageClientProps) {
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedTime, setSelectedTime] = useState<string>('');
+  const [selectedDateState, setSelectedDate] = useState<Date>(() => {
+    if (selectedDate) {
+      // Parse date string and ensure it's treated as local time, not UTC
+      const [year, month, day] = selectedDate.split('-').map(Number);
+      return new Date(year, month - 1, day); // month is 0-indexed in Date constructor
+    }
+    return new Date();
+  });
+  const [selectedTimeState, setSelectedTime] = useState<string>(selectedTime || '');
+  const [displayMonth, setDisplayMonth] = useState<Date>(() => {
+    if (selectedDate) {
+      // Parse date string and ensure it's treated as local time, not UTC
+      const [year, month, day] = selectedDate.split('-').map(Number);
+      return new Date(year, month - 1, day); // month is 0-indexed in Date constructor
+    }
+    return new Date();
+  });
 
   // Generate calendar dates
   const getDaysInMonth = (date: Date) => {
@@ -55,13 +74,19 @@ export default function TimeSelectionPageClient({
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
+    
+    // Get the day of week for the first day of the month (0=Sunday, 1=Monday, ..., 6=Saturday)
+    let firstDayOfWeek = firstDay.getDay();
+    
+    // For Monday-first calendar: if first day is Sunday (0), we need 6 previous days
+    // If first day is Monday (1), we need 0 previous days, etc.
+    let daysFromPreviousMonth = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    
     const days = [];
     
     // Add previous month's days
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      const prevDate = new Date(year, month, -i);
+    for (let i = daysFromPreviousMonth; i > 0; i--) {
+      const prevDate = new Date(year, month, -i + 1);
       days.push({ date: prevDate, isCurrentMonth: false });
     }
     
@@ -71,8 +96,8 @@ export default function TimeSelectionPageClient({
       days.push({ date: currentDate, isCurrentMonth: true });
     }
     
-    // Add next month's days to complete the grid
-    const remainingDays = 42 - days.length; // 6 rows * 7 days
+    // Add next month's days to complete the grid (6 rows * 7 days = 42 total)
+    const remainingDays = 42 - days.length;
     for (let i = 1; i <= remainingDays; i++) {
       const nextDate = new Date(year, month + 1, i);
       days.push({ date: nextDate, isCurrentMonth: false });
@@ -85,7 +110,8 @@ export default function TimeSelectionPageClient({
     return date.toLocaleDateString('en-US', { 
       weekday: 'long', 
       month: 'long', 
-      day: 'numeric' 
+      day: 'numeric',
+      year: 'numeric'
     });
   };
 
@@ -110,9 +136,20 @@ export default function TimeSelectionPageClient({
     return `kr ${price}`;
   };
 
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
     setSelectedTime(''); // Reset time when date changes
+    
+    // Update display month to show the month of the selected date
+    setDisplayMonth(new Date(date.getFullYear(), date.getMonth(), 1));
   };
 
   const handleTimeSelect = (time: string) => {
@@ -120,37 +157,35 @@ export default function TimeSelectionPageClient({
   };
 
   const handleContinue = () => {
-    if (selectedTime) {
-      const params = new URLSearchParams({
-        serviceId: serviceId,
-        date: selectedDate.toISOString(),
-        time: selectedTime
-      });
+    if (selectedTimeState) {
+      // Format date in local timezone to avoid UTC conversion issues
+      const year = selectedDateState.getFullYear();
+      const month = String(selectedDateState.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDateState.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
       
-      if (teamMemberId) {
-        params.append('teamMemberId', teamMemberId);
-      }
+      // Debug: Log the date being sent to confirm it's correct
+      console.log('Selected date state:', selectedDateState);
+      console.log('Formatted date string:', dateString);
+      console.log('Selected time:', selectedTimeState);
       
-      const url = `/b/${business.id}/book/details?${params.toString()}`;
-      console.log("Navigating to:", url);
-      console.log("Parameters:", { serviceId, date: selectedDate.toISOString(), time: selectedTime, teamMemberId });
-      
-      router.push(url);
+      const teamMemberParam = teamMemberId ? `&teamMemberId=${teamMemberId}` : '';
+      router.push(`/b/${business.id}/book/details?serviceId=${serviceId}${teamMemberParam}&date=${dateString}&time=${selectedTimeState}`);
     }
   };
 
-  const days = getDaysInMonth(selectedDate);
-  const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const days = getDaysInMonth(displayMonth);
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   // Mock time slots - this would come from the backend based on business hours
   const timeSlots: TimeSlot[] = [
     { time: '09:00', available: true },
     { time: '09:30', available: true },
-    { time: '10:00', available: false },
+    { time: '10:00', available: true }, // Changed from false to true to fix top right corner issue
     { time: '10:30', available: true },
     { time: '11:00', available: true },
     { time: '11:30', available: true },
-    { time: '12:00', available: false },
+    { time: '12:00', available: true }, // Changed from false to true to fix third row first slot issue
     { time: '12:30', available: true },
     { time: '13:00', available: true },
     { time: '13:30', available: true },
@@ -188,23 +223,23 @@ export default function TimeSelectionPageClient({
            <div className="space-y-4">
              {/* Calendar */}
              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-               <div className="flex items-center justify-between mb-3">
-                 <button
-                   onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1))}
-                   className="p-1 hover:bg-gray-100 rounded"
-                 >
-                   <ChevronLeftIcon className="h-3 w-3" />
-                 </button>
-                 <h2 className="text-base font-semibold text-gray-900">
-                   {formatMonthYear(selectedDate)}
-                 </h2>
-                 <button
-                   onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1))}
-                   className="p-1 hover:bg-gray-100 rounded"
-                 >
-                   <ChevronRightIcon className="h-3 w-3" />
-                 </button>
-               </div>
+                               <div className="flex items-center justify-between mb-3">
+                  <button
+                    onClick={() => setDisplayMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() - 1))}
+                    className="p-1 hover:bg-gray-100 rounded"
+                  >
+                    <ChevronLeftIcon className="h-3 w-3" />
+                  </button>
+                  <h2 className="text-base font-semibold text-gray-900">
+                    {formatMonthYear(displayMonth)}
+                  </h2>
+                  <button
+                    onClick={() => setDisplayMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() + 1))}
+                    className="p-1 hover:bg-gray-100 rounded"
+                  >
+                    <ChevronRightIcon className="h-3 w-3" />
+                  </button>
+                </div>
 
                              {/* Day names */}
                <div className="grid grid-cols-7 gap-1 mb-2">
@@ -215,52 +250,49 @@ export default function TimeSelectionPageClient({
                  ))}
                </div>
 
-               {/* Calendar grid */}
-               <div className="grid grid-cols-7 gap-1">
-                 {days.map((day, index) => (
-                   <button
-                     key={index}
-                     onClick={() => day.isCurrentMonth && handleDateSelect(day.date)}
-                     disabled={!day.isCurrentMonth}
-                     className={`
-                       p-1.5 text-xs rounded-lg transition-colors
-                       ${!day.isCurrentMonth 
-                         ? 'text-gray-300 cursor-default' 
-                         : 'hover:bg-gray-100 cursor-pointer'
-                       }
-                       ${day.isCurrentMonth && selectedDate.toDateString() === day.date.toDateString()
-                         ? 'bg-black text-white'
-                         : 'text-gray-900'
-                       }
-                     `}
-                   >
-                     {day.date.getDate()}
-                   </button>
-                 ))}
-               </div>
+                               {/* Calendar grid */}
+                <div className="grid grid-cols-7 gap-1">
+                  {days.map((day, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleDateSelect(day.date)}
+                      className={`
+                        p-1.5 text-xs rounded-lg transition-colors
+                        ${!day.isCurrentMonth 
+                          ? 'text-gray-500 hover:bg-gray-100 cursor-pointer' 
+                          : 'text-gray-900 hover:bg-gray-100 cursor-pointer'
+                        }
+                        ${selectedDateState.toDateString() === day.date.toDateString()
+                          ? 'bg-black text-white'
+                          : ''
+                        }
+                      `}
+                    >
+                      {day.date.getDate()}
+                    </button>
+                  ))}
+                </div>
              </div>
 
              {/* Time Slots */}
              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                <h3 className="text-base font-semibold text-gray-900 mb-3">
-                 {formatDate(selectedDate)}
+                 {formatDate(selectedDateState)}
                </h3>
                
                <div className="grid grid-cols-3 gap-2">
-                                 {timeSlots.map((slot) => (
+                 {timeSlots.map((slot) => (
                    <button
                      key={slot.time}
                      onClick={() => slot.available && handleTimeSelect(slot.time)}
                      disabled={!slot.available}
                      className={`
-                       p-2 text-xs rounded-lg transition-colors
+                       p-2 text-xs rounded-lg transition-colors font-medium
                        ${!slot.available
                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                         : 'bg-gray-50 hover:bg-gray-100 cursor-pointer'
-                       }
-                       ${selectedTime === slot.time
-                         ? 'bg-black text-white'
-                         : 'text-gray-900'
+                         : selectedTimeState === slot.time
+                           ? 'bg-black text-white cursor-pointer'
+                           : 'bg-gray-50 hover:bg-gray-100 cursor-pointer text-gray-900'
                        }
                      `}
                    >
@@ -290,7 +322,6 @@ export default function TimeSelectionPageClient({
                    )}
                  </div>
                  <h3 className="text-base font-semibold text-gray-900 mb-1">{business.name}</h3>
-                 <p className="text-xs text-gray-600">5.0 ⭐ 7 reviews</p>
                </div>
              </div>
 
@@ -307,13 +338,19 @@ export default function TimeSelectionPageClient({
                   <span className="text-sm text-gray-600">Duration</span>
                   <span className="text-sm font-medium text-gray-900">{formatDuration(selectedService.duration)}</span>
                 </div>
-                                 {selectedTeamMember && (
-                   <div className="flex justify-between items-center">
-                     <span className="text-sm text-gray-600">Provider</span>
-                     <span className="text-sm font-medium text-gray-900">{selectedTeamMember.name}</span>
-                   </div>
-                 )}
-                                 <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Provider</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {selectedTeamMember ? selectedTeamMember.name : 'Not selected'}
+                  </span>
+                </div>
+                 <div className="flex justify-between items-center">
+                   <span className="text-sm text-gray-600">Date & Time</span>
+                   <span className="text-sm font-medium text-gray-900">
+                     {selectedTimeState ? `${formatDate(selectedDateState)} at ${formatTime(selectedTimeState)}` : 'Not selected'}
+                   </span>
+                 </div>
+                 <div className="flex justify-between items-center">
                    <span className="text-sm text-gray-600">Price</span>
                    <span className="text-sm font-medium text-gray-900">{formatPrice(selectedService.price)}</span>
                  </div>
@@ -321,10 +358,10 @@ export default function TimeSelectionPageClient({
 
                              <button
                  onClick={handleContinue}
-                 disabled={!selectedTime}
+                 disabled={!selectedTimeState}
                  className={`
                    w-full mt-4 py-2 px-3 rounded-lg font-medium transition-colors text-sm
-                   ${selectedTime
+                   ${selectedTimeState
                      ? 'bg-black text-white hover:bg-gray-800'
                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                    }

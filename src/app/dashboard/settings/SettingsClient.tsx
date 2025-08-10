@@ -100,6 +100,26 @@ export default function SettingsClient() {
   const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
+  // Brand settings state
+  const [brandData, setBrandData] = useState({
+    name: "",
+    bookingUrl: "",
+    industry: "",
+    about: "",
+    tagline: "",
+  });
+  const [originalBrandData, setOriginalBrandData] = useState({
+    name: "",
+    bookingUrl: "",
+    industry: "",
+    about: "",
+    tagline: "",
+  });
+  const [isLoadingBrand, setIsLoadingBrand] = useState(true);
+  const [brandError, setBrandError] = useState("");
+  const [isSavingBrand, setIsSavingBrand] = useState(false);
+  const [brandSaved, setBrandSaved] = useState(false);
+  
   // Profile data state - initialize with empty values to prevent flash of old data
   const [profileData, setProfileData] = useState({
     name: "",
@@ -174,6 +194,37 @@ export default function SettingsClient() {
     }
   }, [session?.user?.id]);
 
+  // Fetch business data for brand settings
+  useEffect(() => {
+    const fetchBusiness = async () => {
+      try {
+        const response = await fetch('/api/business');
+        if (response.ok) {
+          const business = await response.json();
+          const incoming = {
+            name: business?.name || "",
+            bookingUrl: business?.slug || "",
+            industry: business?.industry || "",
+            about: business?.about || "",
+            tagline: business?.tagline || "",
+          };
+          setBrandData(incoming);
+          setOriginalBrandData(incoming);
+        }
+      } catch (error) {
+        console.error('Error fetching business:', error);
+      } finally {
+        setIsLoadingBrand(false);
+      }
+    };
+
+    if (session?.user?.id) {
+      fetchBusiness();
+    } else {
+      setIsLoadingBrand(false);
+    }
+  }, [session?.user?.id]);
+
   const toggleManageCategory = (categoryId: string) => {
     setExpandedManageCategories(prev =>
       prev.includes(categoryId)
@@ -185,6 +236,8 @@ export default function SettingsClient() {
   const handleCategoryClick = (categoryId: string) => {
     setSelectedCategory(categoryId);
   };
+  const isBrandDirty = () => JSON.stringify(brandData) !== JSON.stringify(originalBrandData);
+
 
   // Check if form has been modified
   const hasChanges = () => {
@@ -512,7 +565,7 @@ export default function SettingsClient() {
             <div className="border-b border-gray-200 mb-4">
               <nav className="flex space-x-6">
                 <button className="py-1.5 px-1 border-b-2 border-gray-900 text-xs font-medium text-gray-900">
-                  General
+                  {selectedCategory === 'brand' ? 'Brand details' : 'General'}
                 </button>
                 <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
                   Advanced
@@ -524,27 +577,170 @@ export default function SettingsClient() {
             </div>
 
             {/* Category Information */}
-            <div className="space-y-3">
-              <div className="flex items-center py-1.5">
-                <div className="w-3 h-3 text-gray-500 mr-2">📋</div>
-                <span className="text-xs text-gray-900">Configuration options coming soon</span>
-              </div>
+            {selectedCategory === 'brand' ? (
+              <div className="space-y-4">
+                {isLoadingBrand ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                    <span className="ml-2 text-sm text-gray-600">Loading brand...</span>
+                  </div>
+                ) : (
+                  <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                    {brandError && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-xs text-red-700">{brandError}</p>
+                      </div>
+                    )}
 
-              <div className="flex items-center py-1.5">
-                <div className="w-3 h-3 text-gray-500 mr-2">🔧</div>
-                <span className="text-xs text-gray-900">Settings will be available in the next update</span>
-              </div>
+                    <div>
+                      <label htmlFor="brand-name" className="block text-xs text-gray-700 mb-1">Business name *</label>
+                      <input
+                        id="brand-name"
+                        type="text"
+                        value={brandData.name}
+                        onChange={(e) => setBrandData({ ...brandData, name: e.target.value })}
+                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                        placeholder="Enter business name"
+                        required
+                      />
+                    </div>
 
-              <div className="flex items-center py-1.5">
-                <div className="w-3 h-3 text-gray-500 mr-2">📊</div>
-                <span className="text-xs text-gray-900">Manage your {selectedCategory.replace('-', ' ')} preferences</span>
-              </div>
+                    <div>
+                      <label htmlFor="brand-url" className="block text-xs text-gray-700 mb-1">Your booking page url</label>
+                      <input
+                        id="brand-url"
+                        type="text"
+                        value={brandData.bookingUrl}
+                        onChange={(e) => setBrandData({ ...brandData, bookingUrl: e.target.value })}
+                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                        placeholder="e.g. /b/your-brand"
+                      />
+                    </div>
 
-              <div className="flex items-center py-1.5">
-                <div className="w-3 h-3 text-gray-500 mr-2">⚡</div>
-                <span className="text-xs text-gray-900">Quick access to common settings</span>
+                    <div>
+                      <label htmlFor="brand-tagline" className="block text-xs text-gray-700 mb-1">Tagline</label>
+                      <input
+                        id="brand-tagline"
+                        type="text"
+                        value={brandData.tagline}
+                        onChange={(e) => setBrandData({ ...brandData, tagline: e.target.value })}
+                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                        placeholder="Short phrase shown under your name"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="brand-industry" className="block text-xs text-gray-700 mb-1">Industry</label>
+                      <input
+                        id="brand-industry"
+                        type="text"
+                        value={brandData.industry}
+                        onChange={(e) => setBrandData({ ...brandData, industry: e.target.value })}
+                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                        placeholder="Enter industry"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="brand-about" className="block text-xs text-gray-700 mb-1">About</label>
+                      <textarea
+                        id="brand-about"
+                        value={brandData.about}
+                        onChange={(e) => setBrandData({ ...brandData, about: e.target.value })}
+                        rows={5}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                        placeholder="Tell customers about your brand"
+                      />
+                    </div>
+
+                    <div className="pt-2 flex items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={!isBrandDirty() || brandData.name.trim() === '' || isSavingBrand}
+                        className={`px-4 py-1.5 rounded-md transition-colors text-sm ${
+                          !isBrandDirty() || brandData.name.trim() === '' || isSavingBrand
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-black text-white hover:bg-gray-800'
+                        }`}
+                        onClick={async () => {
+                          if (brandData.name.trim() === '') {
+                            setBrandError('Business name is required');
+                            return;
+                          }
+                          setBrandError('');
+                          setIsSavingBrand(true);
+                          setBrandSaved(false);
+                          try {
+                            const res = await fetch('/api/business', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
+                              body: JSON.stringify({
+                                name: brandData.name,
+                                slug: brandData.bookingUrl,
+                                industry: brandData.industry,
+                                about: brandData.about,
+                                tagline: brandData.tagline,
+                              })
+                            });
+                            if (!res.ok) {
+                              const err = await res.json().catch(() => ({}));
+                              setBrandError(err.error || 'Failed to save changes');
+                              return;
+                            }
+                            const updated = await res.json();
+                            const normalized = {
+                              name: updated?.name ?? brandData.name,
+                              bookingUrl: updated?.slug ?? brandData.bookingUrl,
+                              industry: updated?.industry ?? '',
+                              about: updated?.about ?? '',
+                              tagline: updated?.tagline ?? '',
+                            };
+                            setBrandData(normalized);
+                            setOriginalBrandData(normalized);
+                            setBrandSaved(true);
+                            // Clear saved indicator after a short delay
+                            setTimeout(() => setBrandSaved(false), 1500);
+                          } catch (e) {
+                            console.error(e);
+                            setBrandError('Failed to save changes');
+                          } finally {
+                            setIsSavingBrand(false);
+                          }
+                        }}
+                      >
+                        {isSavingBrand ? 'Saving…' : isBrandDirty() ? 'Save changes' : (brandSaved ? 'Saved' : 'Save changes')}
+                      </button>
+                      {!isBrandDirty() && brandSaved && (
+                        <span className="text-xs text-green-600">Changes saved</span>
+                      )}
+                    </div>
+                  </form>
+                )}
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center py-1.5">
+                  <div className="w-3 h-3 text-gray-500 mr-2">📋</div>
+                  <span className="text-xs text-gray-900">Configuration options coming soon</span>
+                </div>
+
+                <div className="flex items-center py-1.5">
+                  <div className="w-3 h-3 text-gray-500 mr-2">🔧</div>
+                  <span className="text-xs text-gray-900">Settings will be available in the next update</span>
+                </div>
+
+                <div className="flex items-center py-1.5">
+                  <div className="w-3 h-3 text-gray-500 mr-2">📊</div>
+                  <span className="text-xs text-gray-900">Manage your {selectedCategory.replace('-', ' ')} preferences</span>
+                </div>
+
+                <div className="flex items-center py-1.5">
+                  <div className="w-3 h-3 text-gray-500 mr-2">⚡</div>
+                  <span className="text-xs text-gray-900">Quick access to common settings</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -34,6 +34,7 @@ interface DetailsPageClientProps {
   teamMemberId?: string;
   selectedDate: string;
   selectedTime: string;
+  slug: string;
 }
 
 export default function DetailsPageClient({
@@ -44,7 +45,11 @@ export default function DetailsPageClient({
   teamMemberId,
   selectedDate,
   selectedTime,
+  slug,
 }: DetailsPageClientProps) {
+  // Debug: Log the received date and time to confirm they're correct
+  console.log('Received selectedDate:', selectedDate);
+  console.log('Received selectedTime:', selectedTime);
   const router = useRouter();
   const [formData, setFormData] = useState({
     name: "",
@@ -59,6 +64,8 @@ export default function DetailsPageClient({
     comments: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
 
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -75,7 +82,16 @@ export default function DetailsPageClient({
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // Parse date string and ensure it's treated as local time, not UTC
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month is 0-indexed in Date constructor
+    
+    // Debug: Log the parsing process
+    console.log('formatDate input:', dateString);
+    console.log('Parsed year, month, day:', year, month, day);
+    console.log('Created Date object:', date);
+    console.log('Date.toDateString():', date.toDateString());
+    
     return date.toLocaleDateString('en-US', { 
       weekday: 'long', 
       day: 'numeric',
@@ -103,29 +119,61 @@ export default function DetailsPageClient({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!formData.name.trim()) newErrors.name = "is required";
-    if (!formData.phone.trim()) newErrors.phone = "is required";
-    if (!formData.email.trim()) newErrors.email = "is required";
+    if (!formData.name.trim()) {
+      newErrors.name = "is required";
+    }
+    if (!formData.phone || !formData.phone.trim()) {
+      newErrors.phone = "is required";
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = "is required";
+    }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const isValid = Object.keys(newErrors).length === 0;
+    return isValid;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (validateForm()) {
-      // Here you would typically submit the booking to your backend
-      console.log("Booking submitted:", {
+      setIsSubmitting(true);
+      
+      const requestBody = {
         businessId: business.id,
         serviceId,
-        teamMemberId,
+        teamMemberId: teamMemberId || null,
         date: selectedDate,
         time: selectedTime,
         customerDetails: formData,
-      });
+      };
       
-      // For now, just show an alert
-      alert("Booking submitted successfully!");
+      try {
+        const response = await fetch("/api/public/booking", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          
+          // Show confirmation modal instead of alert
+          setShowConfirmationModal(true);
+        } else {
+          const errorData = await response.json();
+          console.error("Booking failed:", errorData);
+          alert(`Booking failed: ${errorData.error || "Unknown error"}`);
+        }
+      } catch (error) {
+        console.error("Error submitting booking:", error);
+        alert("An error occurred while submitting your booking. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -569,9 +617,10 @@ export default function DetailsPageClient({
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full bg-black text-white py-1.5 px-3 rounded font-medium hover:bg-gray-800 transition-colors text-xs"
+                disabled={isSubmitting}
+                className="w-full mt-4 py-2 px-3 rounded-lg font-medium transition-colors text-sm bg-black text-white hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Confirm
+                {isSubmitting ? "Creating Booking..." : "Confirm"}
               </button>
             </form>
           </div>
@@ -595,7 +644,6 @@ export default function DetailsPageClient({
                   )}
                 </div>
                 <h3 className="text-base font-semibold text-gray-900 mb-1">{business.name}</h3>
-                <p className="text-xs text-gray-600">5.0 ⭐ 7 reviews</p>
               </div>
             </div>
 
@@ -605,27 +653,30 @@ export default function DetailsPageClient({
               
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Time</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {formatTime(selectedTime)} - {formatTime(new Date(new Date(selectedDate).getTime() + selectedService.duration * 60000).toTimeString().slice(0, 5))}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Date</span>
-                  <div className="flex items-center">
-                    <span className="text-sm font-medium text-gray-900">{formatDate(selectedDate)}</span>
-                    <PencilIcon className="h-3 w-3 ml-1 text-gray-500" />
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Service</span>
                   <span className="text-sm font-medium text-gray-900">{selectedService.name}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Duration</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {formatDuration(selectedService.duration)} - with {selectedTeamMember.name}
-                  </span>
+                  <span className="text-sm font-medium text-gray-900">{formatDuration(selectedService.duration)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Provider</span>
+                  <span className="text-sm font-medium text-gray-900">{selectedTeamMember.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Date & Time</span>
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => router.push(`/b/${slug}/book/time?serviceId=${serviceId}&teamMemberId=${teamMemberId}&selectedDate=${selectedDate}&selectedTime=${selectedTime}`)}
+                      className="p-1 hover:bg-gray-100 rounded transition-colors mr-2"
+                    >
+                      <PencilIcon className="h-3 w-3 text-gray-500" />
+                    </button>
+                    <span className="text-sm font-medium text-gray-900">
+                      {formatDate(selectedDate)} at {formatTime(selectedTime)}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Price</span>
@@ -636,6 +687,64 @@ export default function DetailsPageClient({
           </div>
         </div>
       </div>
+
+      {/* Booking Confirmation Modal */}
+      {showConfirmationModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 relative">
+            <div className="p-6">
+              <div className="text-center mb-4">
+                <div className="w-12 h-12 mx-auto mb-3 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Booking Confirmed!
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Thank you for your booking. We'll see you soon!
+                </p>
+              </div>
+
+              {/* Booking Summary */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="text-sm font-medium text-gray-900 mb-3">Booking Summary</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Service:</span>
+                    <span className="font-medium text-gray-900">{selectedService.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Date:</span>
+                    <span className="font-medium text-gray-900">{formatDate(selectedDate)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Time:</span>
+                    <span className="font-medium text-gray-900">{formatTime(selectedTime)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Provider:</span>
+                    <span className="font-medium text-gray-900">{selectedTeamMember.name}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    setShowConfirmationModal(false);
+                    router.push(`/b/${slug}`);
+                  }}
+                  className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm font-medium"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
