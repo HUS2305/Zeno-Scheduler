@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 import { notFound } from "next/navigation";
 import DetailsPageClient from "./DetailsPageClient";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 export default async function DetailsPage({
   params,
@@ -23,43 +21,37 @@ export default async function DetailsPage({
 
   let business;
   try {
+    // The [slug] parameter is actually the business ID, so just use it directly
     business = await prisma.business.findFirst({
       where: { id: slug },
-      include: {
-        team: teamMemberId ? {
-          where: { id: teamMemberId },
-        } : {
+      select: {
+        id: true,
+        name: true,
+        profilePic: true,
+        theme: true,
+        brandColor: true,
+        team: {
           take: 1,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
         },
         services: {
           where: { id: serviceId },
+          select: {
+            id: true,
+            name: true,
+            duration: true,
+            price: true,
+          },
         },
       },
     });
   } catch (error) {
     console.error("Database connection error:", error);
-    console.log("Using mock data for business:", slug);
-    // Use mock data when database is unavailable
-    business = {
-      id: slug,
-      name: "the crew",
-      profilePic: null,
-      team: [
-        {
-          id: teamMemberId || "6887e529375836ca77827faf",
-          name: "Owner",
-          email: "owner@example.com"
-        }
-      ],
-      services: [
-        {
-          id: serviceId,
-          name: "Klip",
-          duration: 30,
-          price: 100,
-        }
-      ]
-    };
+    notFound();
   }
 
   if (!business) {

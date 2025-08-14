@@ -35,6 +35,18 @@ model Business {
   // Industry classification and longer description
   industry     String?
   about        String?
+  // Contact information
+  contactEmail String?
+  contactPhone String?
+  // Location information
+  country      String?
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?
+  // Appearance settings
+  theme        String?    @default("light")
+  brandColor   String?    @default("#000000")
   ownerId      String     @unique @db.ObjectId
   owner        User       @relation("UserBusiness", fields: [ownerId], references: [id])
   services     Service[]

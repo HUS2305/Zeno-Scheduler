@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
+import ColorPicker from "../../../components/dashboard/ColorPicker";
 
 // Settings categories data
 const settingsCategories = [
@@ -89,11 +90,74 @@ const moreCategories = [
 
 export default function SettingsClient() {
   const { data: session } = useSession();
-  const [selectedCategory, setSelectedCategory] = useState("profile");
+  const [selectedCategory, setSelectedCategory] = useState("brand");
+  const [selectedBrandTab, setSelectedBrandTab] = useState("brand-details");
   const [expandedManageCategories, setExpandedManageCategories] = useState<string[]>([]);
+  
+  // Contact details state
+  const [contactData, setContactData] = useState({
+    email: "",
+    phone: "",
+  });
+  const [originalContactData, setOriginalContactData] = useState({
+    email: "",
+    phone: "",
+  });
+  const [hasContactChanges, setHasContactChanges] = useState(false);
+  const [isSavingContact, setIsSavingContact] = useState(false);
+  const [contactSaved, setContactSaved] = useState(false);
+  const [contactError, setContactError] = useState("");
+
+  // Location details state
+  const [locationData, setLocationData] = useState({
+    country: "",
+    address: "",
+    city: "",
+    state: "",
+    zipCode: "",
+  });
+  const [originalLocationData, setOriginalLocationData] = useState({
+    country: "",
+    address: "",
+    city: "",
+    state: "",
+    zipCode: "",
+  });
+
+  // Working hours state - Default to 8:00-17:00 for all days
+  const [workingHoursData, setWorkingHoursData] = useState([
+    { dayOfWeek: 1, dayName: "Monday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 2, dayName: "Tuesday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 3, dayName: "Wednesday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 4, dayName: "Thursday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 5, dayName: "Friday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 6, dayName: "Saturday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 0, dayName: "Sunday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+  ]);
+  const [originalWorkingHoursData, setOriginalWorkingHoursData] = useState([
+    { dayOfWeek: 1, dayName: "Monday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 2, dayName: "Tuesday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 3, dayName: "Wednesday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 4, dayName: "Thursday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 5, dayName: "Friday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 6, dayName: "Saturday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+    { dayOfWeek: 0, dayName: "Sunday", isEnabled: true, openTime: "08:00", closeTime: "17:00" },
+  ]);
+  const [hasLocationChanges, setHasLocationChanges] = useState(false);
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
+  const [locationSaved, setLocationSaved] = useState(false);
+  const [locationError, setLocationError] = useState("");
+
+  // Working hours state
+  const [hasWorkingHoursChanges, setHasWorkingHoursChanges] = useState(false);
+  const [isSavingWorkingHours, setIsSavingWorkingHours] = useState(false);
+  const [workingHoursSaved, setWorkingHoursSaved] = useState(false);
+  const [workingHoursError, setWorkingHoursError] = useState("");
   
   // Profile edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
+  
+
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -119,6 +183,20 @@ export default function SettingsClient() {
   const [brandError, setBrandError] = useState("");
   const [isSavingBrand, setIsSavingBrand] = useState(false);
   const [brandSaved, setBrandSaved] = useState(false);
+  
+  // Appearance settings state
+  const [appearanceData, setAppearanceData] = useState({
+    theme: "light",
+    brandColor: "#000000",
+  });
+  const [originalAppearanceData, setOriginalAppearanceData] = useState({
+    theme: "light",
+    brandColor: "#000000",
+  });
+  const [hasAppearanceChanges, setHasAppearanceChanges] = useState(false);
+  const [isSavingAppearance, setIsSavingAppearance] = useState(false);
+  const [appearanceSaved, setAppearanceSaved] = useState(false);
+  const [appearanceError, setAppearanceError] = useState("");
   
   // Profile data state - initialize with empty values to prevent flash of old data
   const [profileData, setProfileData] = useState({
@@ -210,6 +288,68 @@ export default function SettingsClient() {
           };
           setBrandData(incoming);
           setOriginalBrandData(incoming);
+          
+          // Set contact data
+          const contactIncoming = {
+            email: business?.contactEmail || "",
+            phone: business?.contactPhone || "",
+          };
+          setContactData(contactIncoming);
+          setOriginalContactData(contactIncoming);
+          
+          // Set location data
+          const locationIncoming = {
+            country: business?.country || "",
+            address: business?.address || "",
+            city: business?.city || "",
+            state: business?.state || "",
+            zipCode: business?.zipCode || "",
+          };
+          setLocationData(locationIncoming);
+          setOriginalLocationData(locationIncoming);
+
+          // Set working hours data
+          if (business?.openingHours) {
+            // Create a map of existing hours by day of week
+            const existingHoursMap = new Map();
+            business.openingHours.forEach((hour: any) => {
+              existingHoursMap.set(hour.dayOfWeek, {
+                openTime: hour.openTime,
+                closeTime: hour.closeTime,
+              });
+            });
+            
+            // Update working hours data with existing hours or defaults
+            // Days that don't exist in openingHours are considered disabled (closed)
+            const updatedWorkingHours = workingHoursData.map(day => {
+              const existingHour = existingHoursMap.get(day.dayOfWeek);
+              if (existingHour) {
+                return {
+                  ...day,
+                  isEnabled: true, // Day is open
+                  openTime: existingHour.openTime,
+                  closeTime: existingHour.closeTime,
+                };
+              } else {
+                return {
+                  ...day,
+                  isEnabled: false, // Day is closed (disabled)
+                  // Keep the current open/close times for when they re-enable it
+                };
+              }
+            });
+            
+            setWorkingHoursData(updatedWorkingHours);
+            setOriginalWorkingHoursData(updatedWorkingHours);
+          }
+
+          // Set appearance data
+          const appearanceIncoming = {
+            theme: business?.theme || "light",
+            brandColor: business?.brandColor || "#000000",
+          };
+          setAppearanceData(appearanceIncoming);
+          setOriginalAppearanceData(appearanceIncoming);
         }
       } catch (error) {
         console.error('Error fetching business:', error);
@@ -237,6 +377,38 @@ export default function SettingsClient() {
     setSelectedCategory(categoryId);
   };
   const isBrandDirty = () => JSON.stringify(brandData) !== JSON.stringify(originalBrandData);
+
+  // Check if contact details have been modified
+  const isContactDirty = () => JSON.stringify(contactData) !== JSON.stringify(originalContactData);
+
+  // Check if location details have been modified
+  const isLocationDirty = () => JSON.stringify(locationData) !== JSON.stringify(originalLocationData);
+
+  // Check if working hours have been modified
+  const isWorkingHoursDirty = () => JSON.stringify(workingHoursData) !== JSON.stringify(originalWorkingHoursData);
+
+  // Check if appearance has been modified
+  const isAppearanceDirty = () => JSON.stringify(appearanceData) !== JSON.stringify(originalAppearanceData);
+
+  // Contact details validation
+  const isContactFormValid = () => {
+    // Email validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    // If email is provided, it must be valid
+    if (contactData.email && !emailRegex.test(contactData.email.trim())) {
+      return false;
+    }
+    
+    // If phone is provided, it must be a valid phone number (PhoneInput handles format)
+    if (contactData.phone && contactData.phone.length < 8) {
+      return false;
+    }
+    
+    // Both fields can be empty (owner can choose to hide contact details)
+    // But if provided, they must be valid
+    return true;
+  };
 
 
   // Check if form has been modified
@@ -341,6 +513,130 @@ export default function SettingsClient() {
 
   const handleCloseUnsavedModal = () => {
     setShowUnsavedChangesModal(false);
+  };
+
+  // Working hours save function
+  const handleSaveWorkingHours = async () => {
+    setWorkingHoursError('');
+    setIsSavingWorkingHours(true);
+    setWorkingHoursSaved(false);
+    
+    try {
+      // Convert working hours data to the format expected by the API
+      const openingHours = workingHoursData
+        .filter(day => day.isEnabled)
+        .map(day => ({
+          dayOfWeek: day.dayOfWeek,
+          openTime: day.openTime,
+          closeTime: day.closeTime,
+        }));
+
+      const res = await fetch('/api/business', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: brandData.name, // Include current business name to avoid validation error
+          openingHours: openingHours,
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setWorkingHoursError(err.error || 'Failed to save working hours');
+        return;
+      }
+
+      // Update the original data to reflect the saved state
+      setOriginalWorkingHoursData(workingHoursData);
+      setHasWorkingHoursChanges(false);
+      setWorkingHoursSaved(true);
+      
+      // Reload business data to ensure sync with public page
+      try {
+        const refreshResponse = await fetch('/api/business');
+        if (refreshResponse.ok) {
+          const refreshedBusiness = await refreshResponse.json();
+          // Update working hours with the refreshed data
+          if (refreshedBusiness?.openingHours) {
+            const existingHoursMap = new Map();
+            refreshedBusiness.openingHours.forEach((hour: any) => {
+              existingHoursMap.set(hour.dayOfWeek, {
+                openTime: hour.openTime,
+                closeTime: hour.closeTime,
+              });
+            });
+            
+            // Update working hours while preserving the current state
+            const updatedWorkingHours = workingHoursData.map(day => {
+              const existingHour = existingHoursMap.get(day.dayOfWeek);
+              if (existingHour) {
+                return {
+                  ...day,
+                  isEnabled: true, // Day is open
+                  openTime: existingHour.openTime,
+                  closeTime: existingHour.closeTime,
+                };
+              } else {
+                return {
+                  ...day,
+                  isEnabled: false, // Day is closed (disabled)
+                  // Keep the current open/close times for when they re-enable it
+                };
+              }
+            });
+            
+            setWorkingHoursData(updatedWorkingHours);
+            setOriginalWorkingHoursData(updatedWorkingHours);
+          }
+        }
+      } catch (refreshError) {
+        console.warn('Failed to refresh business data after save:', refreshError);
+      }
+      
+      setTimeout(() => setWorkingHoursSaved(false), 1500);
+    } catch (e) {
+      console.error(e);
+      setWorkingHoursError('Failed to save working hours');
+    } finally {
+      setIsSavingWorkingHours(false);
+    }
+  };
+
+  // Appearance save function
+  const handleSaveAppearance = async () => {
+    setAppearanceError('');
+    setIsSavingAppearance(true);
+    setAppearanceSaved(false);
+    
+    try {
+      const res = await fetch('/api/business', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: brandData.name, // Include current business name to avoid validation error
+          theme: appearanceData.theme,
+          brandColor: appearanceData.brandColor,
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setAppearanceError(err.error || 'Failed to save appearance settings');
+        return;
+      }
+
+      setOriginalAppearanceData(appearanceData);
+      setHasAppearanceChanges(false);
+      setAppearanceSaved(true);
+      setTimeout(() => setAppearanceSaved(false), 1500);
+    } catch (e) {
+      console.error(e);
+      setAppearanceError('Failed to save appearance settings');
+    } finally {
+      setIsSavingAppearance(false);
+    }
   };
 
   return (
@@ -563,16 +859,58 @@ export default function SettingsClient() {
 
             {/* Navigation Tabs */}
             <div className="border-b border-gray-200 mb-4">
-              <nav className="flex space-x-6">
-                <button className="py-1.5 px-1 border-b-2 border-gray-900 text-xs font-medium text-gray-900">
-                  {selectedCategory === 'brand' ? 'Brand details' : 'General'}
+              <nav className="flex space-x-3 flex-nowrap overflow-x-auto">
+                <button 
+                  onClick={() => setSelectedBrandTab('brand-details')}
+                  className={`py-1.5 px-1 border-b-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                    selectedBrandTab === 'brand-details'
+                      ? 'border-gray-900 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Brand details
                 </button>
-                <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
-                  Advanced
+                <button 
+                  onClick={() => setSelectedBrandTab('contact-details')}
+                  className={`py-1.5 px-1 border-b-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                    selectedBrandTab === 'contact-details'
+                      ? 'border-gray-900 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Contact details
                 </button>
-                <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
-                  Security
+                <button 
+                  onClick={() => setSelectedBrandTab('location')}
+                  className={`py-1.5 px-1 border-b-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                    selectedBrandTab === 'location'
+                      ? 'border-gray-900 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Location
                 </button>
+                <button 
+                  onClick={() => setSelectedBrandTab('business-hours')}
+                  className={`py-1.5 px-1 border-b-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                    selectedBrandTab === 'business-hours'
+                      ? 'border-gray-900 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Business hours
+                </button>
+                <button 
+                  onClick={() => setSelectedBrandTab('appearance')}
+                  className={`py-1.5 px-1 border-b-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                    selectedBrandTab === 'appearance'
+                      ? 'border-gray-900 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Appearance
+                </button>
+
               </nav>
             </div>
 
@@ -585,137 +923,738 @@ export default function SettingsClient() {
                     <span className="ml-2 text-sm text-gray-600">Loading brand...</span>
                   </div>
                 ) : (
-                  <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-                    {brandError && (
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-xs text-red-700">{brandError}</p>
+                  <>
+                    {/* Brand Details Tab */}
+                    {selectedBrandTab === 'brand-details' && (
+                      <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                        {brandError && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-xs text-red-700">{brandError}</p>
+                          </div>
+                        )}
+
+                        <div>
+                          <label htmlFor="brand-name" className="block text-xs text-gray-700 mb-1">Business name *</label>
+                          <input
+                            id="brand-name"
+                            type="text"
+                            value={brandData.name}
+                            onChange={(e) => setBrandData({ ...brandData, name: e.target.value })}
+                            className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                            placeholder="Enter business name"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="brand-url" className="block text-xs text-gray-700 mb-1">Your booking page url</label>
+                          <input
+                            id="brand-url"
+                            type="text"
+                            value={brandData.bookingUrl}
+                            onChange={(e) => setBrandData({ ...brandData, bookingUrl: e.target.value })}
+                            className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                            placeholder="e.g. /b/your-brand"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="brand-tagline" className="block text-xs text-gray-700 mb-1">Tagline</label>
+                          <input
+                            id="brand-tagline"
+                            type="text"
+                            value={brandData.tagline}
+                            onChange={(e) => setBrandData({ ...brandData, tagline: e.target.value })}
+                            className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                            placeholder="Short phrase shown under your name"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="brand-industry" className="block text-xs text-gray-700 mb-1">Industry</label>
+                          <input
+                            id="brand-industry"
+                            type="text"
+                            value={brandData.industry}
+                            onChange={(e) => setBrandData({ ...brandData, industry: e.target.value })}
+                            className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                            placeholder="Enter industry"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="brand-about" className="block text-xs text-gray-700 mb-1">About</label>
+                          <textarea
+                            id="brand-about"
+                            value={brandData.about}
+                            onChange={(e) => setBrandData({ ...brandData, about: e.target.value })}
+                            rows={5}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                            placeholder="Tell customers about your brand"
+                          />
+                        </div>
+
+                        <div className="pt-2 flex items-center gap-3">
+                          <button
+                            type="button"
+                            disabled={!isBrandDirty() || brandData.name.trim() === '' || isSavingBrand}
+                            className={`px-4 py-1.5 rounded-md transition-colors text-sm ${
+                              !isBrandDirty() || brandData.name.trim() === '' || isSavingBrand
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-black text-white hover:bg-gray-800'
+                            }`}
+                            onClick={async () => {
+                              if (brandData.name.trim() === '') {
+                                setBrandError('Business name is required');
+                                return;
+                              }
+                              setBrandError('');
+                              setIsSavingBrand(true);
+                              setBrandSaved(false);
+                              try {
+                                const res = await fetch('/api/business', {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  credentials: 'include',
+                                  body: JSON.stringify({
+                                    name: brandData.name,
+                                    slug: brandData.bookingUrl,
+                                    industry: brandData.industry,
+                                    about: brandData.about,
+                                    tagline: brandData.tagline,
+                                  })
+                                });
+                                if (!res.ok) {
+                                  const err = await res.json().catch(() => ({}));
+                                  setBrandError(err.error || 'Failed to save changes');
+                                  return;
+                                }
+                                const updated = await res.json();
+                                const normalized = {
+                                  name: updated?.name ?? brandData.name,
+                                  bookingUrl: updated?.slug ?? brandData.bookingUrl,
+                                  industry: updated?.industry ?? '',
+                                  about: updated?.about ?? '',
+                                  tagline: updated?.tagline ?? '',
+                                };
+                                setBrandData(normalized);
+                                setOriginalBrandData(normalized);
+                                setBrandSaved(true);
+                                // Clear saved indicator after a short delay
+                                setTimeout(() => setBrandSaved(false), 1500);
+                              } catch (e) {
+                                console.error(e);
+                                setBrandError('Failed to save changes');
+                              } finally {
+                                setIsSavingBrand(false);
+                              }
+                            }}
+                          >
+                            {isSavingBrand ? 'Saving…' : isBrandDirty() ? 'Save changes' : (brandSaved ? 'Saved' : 'Save changes')}
+                          </button>
+                          {!isBrandDirty() && brandSaved && (
+                            <span className="text-xs text-green-600">Changes saved</span>
+                          )}
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Contact Details Tab */}
+                    {selectedBrandTab === 'contact-details' && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs text-gray-700 mb-2">Contact Email</label>
+                          <input
+                            type="email"
+                            value={contactData.email}
+                            onChange={(e) => {
+                              setContactData(prev => ({ ...prev, email: e.target.value }));
+                              setHasContactChanges(true);
+                            }}
+                            className="w-80 px-2 py-1.5 border border-gray-300 rounded-md text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                            placeholder="Enter contact email"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs text-gray-700 mb-2">Contact Phone</label>
+                          <PhoneInput
+                            international
+                            defaultCountry="DK"
+                            value={contactData.phone}
+                            onChange={(value) => {
+                              setContactData(prev => ({ ...prev, phone: value || "" }));
+                              setHasContactChanges(true);
+                            }}
+                            className="w-80"
+                            style={{
+                              '--PhoneInputCountryFlag-borderColor': 'transparent',
+                              '--PhoneInputCountryFlag-borderWidth': '0',
+                            } as React.CSSProperties}
+                          />
+                        </div>
+
+                        {contactError && (
+                          <div className="text-xs text-red-600">{contactError}</div>
+                        )}
+
+                        {/* Save Changes Button */}
+                        <div className="mt-8 flex justify-start">
+                          <button
+                            type="button"
+                            disabled={!hasContactChanges || isSavingContact || !isContactFormValid()}
+                            className={`px-4 py-1.5 rounded-md transition-colors text-sm ${
+                              !hasContactChanges || isSavingContact || !isContactFormValid()
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-black text-white hover:bg-gray-800'
+                            }`}
+                            onClick={async () => {
+                              if (!isContactFormValid()) {
+                                setContactError('Please fix the validation errors before saving');
+                                return;
+                              }
+                              setContactError('');
+                              setIsSavingContact(true);
+                              try {
+                                const res = await fetch('/api/business', {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  credentials: 'include',
+                                  body: JSON.stringify({
+                                    name: brandData.name, // Include current business name to avoid validation error
+                                    contactEmail: contactData.email,
+                                    contactPhone: contactData.phone,
+                                  })
+                                });
+                                if (!res.ok) {
+                                  const err = await res.json().catch(() => ({}));
+                                  setContactError(err.error || 'Failed to save changes');
+                                  return;
+                                }
+                                setOriginalContactData(contactData);
+                                setHasContactChanges(false);
+                                setContactSaved(true);
+                                setTimeout(() => setContactSaved(false), 1500);
+                              } catch (e) {
+                                console.error(e);
+                                setContactError('Failed to save changes');
+                              } finally {
+                                setIsSavingContact(false);
+                              }
+                            }}
+                          >
+                            {isSavingContact ? 'Saving…' : hasContactChanges ? 'Save changes' : (contactSaved ? 'Saved' : 'Save changes')}
+                          </button>
+                          {!hasContactChanges && contactSaved && (
+                            <span className="text-xs text-green-600">Changes saved</span>
+                          )}
+                        </div>
                       </div>
                     )}
 
-                    <div>
-                      <label htmlFor="brand-name" className="block text-xs text-gray-700 mb-1">Business name *</label>
-                      <input
-                        id="brand-name"
-                        type="text"
-                        value={brandData.name}
-                        onChange={(e) => setBrandData({ ...brandData, name: e.target.value })}
-                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
-                        placeholder="Enter business name"
-                        required
-                      />
-                    </div>
+                                         {/* Appearance Tab */}
+                     {selectedBrandTab === 'appearance' && (
+                       <div className="space-y-4">
+                         {/* Coming Soon Message - No Background Box */}
+                         <div className="text-center py-8">
+                           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                             <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                             </svg>
+                           </div>
+                           <h3 className="text-lg font-medium text-gray-900 mb-2">Coming Soon</h3>
+                           <p className="text-sm text-gray-500 max-w-md mx-auto">
+                             We're working on some amazing appearance customization features. 
+                             You'll be able to customize your brand colors, themes, and styling options soon.
+                           </p>
+                         </div>
+                       </div>
+                     )}
 
-                    <div>
-                      <label htmlFor="brand-url" className="block text-xs text-gray-700 mb-1">Your booking page url</label>
-                      <input
-                        id="brand-url"
-                        type="text"
-                        value={brandData.bookingUrl}
-                        onChange={(e) => setBrandData({ ...brandData, bookingUrl: e.target.value })}
-                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
-                        placeholder="e.g. /b/your-brand"
-                      />
-                    </div>
 
-                    <div>
-                      <label htmlFor="brand-tagline" className="block text-xs text-gray-700 mb-1">Tagline</label>
-                      <input
-                        id="brand-tagline"
-                        type="text"
-                        value={brandData.tagline}
-                        onChange={(e) => setBrandData({ ...brandData, tagline: e.target.value })}
-                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
-                        placeholder="Short phrase shown under your name"
-                      />
-                    </div>
 
-                    <div>
-                      <label htmlFor="brand-industry" className="block text-xs text-gray-700 mb-1">Industry</label>
-                      <input
-                        id="brand-industry"
-                        type="text"
-                        value={brandData.industry}
-                        onChange={(e) => setBrandData({ ...brandData, industry: e.target.value })}
-                        className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
-                        placeholder="Enter industry"
-                      />
-                    </div>
+                    {/* Location Tab */}
+                    {selectedBrandTab === 'location' && (
+                      <div className="space-y-4">
+                        <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                          {locationError && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                              <p className="text-xs text-red-700">{locationError}</p>
+                            </div>
+                          )}
 
-                    <div>
-                      <label htmlFor="brand-about" className="block text-xs text-gray-700 mb-1">About</label>
-                      <textarea
-                        id="brand-about"
-                        value={brandData.about}
-                        onChange={(e) => setBrandData({ ...brandData, about: e.target.value })}
-                        rows={5}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
-                        placeholder="Tell customers about your brand"
-                      />
-                    </div>
+                          <div>
+                            <label htmlFor="location-country" className="block text-xs text-gray-700 mb-1">Country</label>
+                            <select 
+                              id="location-country"
+                              value={locationData.country}
+                              onChange={(e) => {
+                                setLocationData(prev => ({ ...prev, country: e.target.value }));
+                                setHasLocationChanges(true);
+                              }}
+                              className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent bg-white text-xs text-gray-900"
+                            >
+                              <option value="">Select a country</option>
+                              <option value="AF">Afghanistan</option>
+                              <option value="AL">Albania</option>
+                              <option value="DZ">Algeria</option>
+                              <option value="AS">American Samoa</option>
+                              <option value="AD">Andorra</option>
+                              <option value="AO">Angola</option>
+                              <option value="AI">Anguilla</option>
+                              <option value="AQ">Antarctica</option>
+                              <option value="AG">Antigua and Barbuda</option>
+                              <option value="AR">Argentina</option>
+                              <option value="AM">Armenia</option>
+                              <option value="AW">Aruba</option>
+                              <option value="AU">Australia</option>
+                              <option value="AT">Austria</option>
+                              <option value="AZ">Azerbaijan</option>
+                              <option value="BS">Bahamas</option>
+                              <option value="BH">Bahrain</option>
+                              <option value="BD">Bangladesh</option>
+                              <option value="BB">Barbados</option>
+                              <option value="BY">Belarus</option>
+                              <option value="BE">Belgium</option>
+                              <option value="BZ">Belize</option>
+                              <option value="BJ">Benin</option>
+                              <option value="BM">Bermuda</option>
+                              <option value="BT">Bhutan</option>
+                              <option value="BO">Bolivia</option>
+                              <option value="BA">Bosnia and Herzegovina</option>
+                              <option value="BW">Botswana</option>
+                              <option value="BV">Bouvet Island</option>
+                              <option value="BR">Brazil</option>
+                              <option value="IO">British Indian Ocean Territory</option>
+                              <option value="BN">Brunei Darussalam</option>
+                              <option value="BG">Bulgaria</option>
+                              <option value="BF">Burkina Faso</option>
+                              <option value="BI">Burundi</option>
+                              <option value="KH">Cambodia</option>
+                              <option value="CM">Cameroon</option>
+                              <option value="CA">Canada</option>
+                              <option value="CV">Cape Verde</option>
+                              <option value="KY">Cayman Islands</option>
+                              <option value="CF">Central African Republic</option>
+                              <option value="TD">Chad</option>
+                              <option value="CL">Chile</option>
+                              <option value="CN">China</option>
+                              <option value="CX">Christmas Island</option>
+                              <option value="CC">Cocos (Keeling) Islands</option>
+                              <option value="CO">Colombia</option>
+                              <option value="KM">Comoros</option>
+                              <option value="CG">Congo</option>
+                              <option value="CD">Congo, the Democratic Republic of the</option>
+                              <option value="CK">Cook Islands</option>
+                              <option value="CR">Costa Rica</option>
+                              <option value="CI">Côte d'Ivoire</option>
+                              <option value="HR">Croatia</option>
+                              <option value="CU">Cuba</option>
+                              <option value="CY">Cyprus</option>
+                              <option value="CZ">Czech Republic</option>
+                              <option value="DK">Denmark</option>
+                              <option value="DJ">Djibouti</option>
+                              <option value="DM">Dominica</option>
+                              <option value="DO">Dominican Republic</option>
+                              <option value="EC">Ecuador</option>
+                              <option value="EG">Egypt</option>
+                              <option value="SV">El Salvador</option>
+                              <option value="GQ">Equatorial Guinea</option>
+                              <option value="ER">Eritrea</option>
+                              <option value="EE">Estonia</option>
+                              <option value="ET">Ethiopia</option>
+                              <option value="FK">Falkland Islands (Malvinas)</option>
+                              <option value="FO">Faroe Islands</option>
+                              <option value="FJ">Fiji</option>
+                              <option value="FI">Finland</option>
+                              <option value="FR">France</option>
+                              <option value="GF">French Guiana</option>
+                              <option value="PF">French Polynesia</option>
+                              <option value="TF">French Southern Territories</option>
+                              <option value="GA">Gabon</option>
+                              <option value="GM">Gambia</option>
+                              <option value="GE">Georgia</option>
+                              <option value="DE">Germany</option>
+                              <option value="GH">Ghana</option>
+                              <option value="GI">Gibraltar</option>
+                              <option value="GR">Greece</option>
+                              <option value="GL">Greenland</option>
+                              <option value="GD">Grenada</option>
+                              <option value="GP">Guadeloupe</option>
+                              <option value="GU">Guam</option>
+                              <option value="GT">Guatemala</option>
+                              <option value="GG">Guernsey</option>
+                              <option value="GN">Guinea</option>
+                              <option value="GW">Guinea-Bissau</option>
+                              <option value="GY">Guyana</option>
+                              <option value="HT">Haiti</option>
+                              <option value="HM">Heard Island and McDonald Islands</option>
+                              <option value="VA">Holy See (Vatican City State)</option>
+                              <option value="HN">Honduras</option>
+                              <option value="HK">Hong Kong</option>
+                              <option value="HU">Hungary</option>
+                              <option value="IS">Iceland</option>
+                              <option value="IN">India</option>
+                              <option value="ID">Indonesia</option>
+                              <option value="IR">Iran, Islamic Republic of</option>
+                              <option value="IQ">Iraq</option>
+                              <option value="IE">Ireland</option>
+                              <option value="IM">Isle of Man</option>
+                              <option value="IL">Israel</option>
+                              <option value="IT">Italy</option>
+                              <option value="JM">Jamaica</option>
+                              <option value="JP">Japan</option>
+                              <option value="JE">Jersey</option>
+                              <option value="JO">Jordan</option>
+                              <option value="KZ">Kazakhstan</option>
+                              <option value="KE">Kenya</option>
+                              <option value="KI">Kiribati</option>
+                              <option value="KP">Korea, Democratic People's Republic of</option>
+                              <option value="KR">Korea, Republic of</option>
+                              <option value="KW">Kuwait</option>
+                              <option value="KG">Kyrgyzstan</option>
+                              <option value="LA">Lao People's Democratic Republic</option>
+                              <option value="LV">Latvia</option>
+                              <option value="LB">Lebanon</option>
+                              <option value="LS">Lesotho</option>
+                              <option value="LR">Liberia</option>
+                              <option value="LY">Libyan Arab Jamahiriya</option>
+                              <option value="LI">Liechtenstein</option>
+                              <option value="LT">Lithuania</option>
+                              <option value="LU">Luxembourg</option>
+                              <option value="MO">Macao</option>
+                              <option value="MK">Macedonia, the former Yugoslav Republic of</option>
+                              <option value="MG">Madagascar</option>
+                              <option value="MW">Malawi</option>
+                              <option value="MY">Malaysia</option>
+                              <option value="MV">Maldives</option>
+                              <option value="ML">Mali</option>
+                              <option value="MT">Malta</option>
+                              <option value="MH">Marshall Islands</option>
+                              <option value="MQ">Martinique</option>
+                              <option value="MR">Mauritania</option>
+                              <option value="MU">Mauritius</option>
+                              <option value="YT">Mayotte</option>
+                              <option value="MX">Mexico</option>
+                              <option value="FM">Micronesia, Federated States of</option>
+                              <option value="MD">Moldova, Republic of</option>
+                              <option value="MC">Monaco</option>
+                              <option value="MN">Mongolia</option>
+                              <option value="ME">Montenegro</option>
+                              <option value="MS">Montserrat</option>
+                              <option value="MA">Morocco</option>
+                              <option value="MZ">Mozambique</option>
+                              <option value="MM">Myanmar</option>
+                              <option value="NA">Namibia</option>
+                              <option value="NR">Nauru</option>
+                              <option value="NP">Nepal</option>
+                              <option value="NL">Netherlands</option>
+                              <option value="NC">New Caledonia</option>
+                              <option value="NZ">New Zealand</option>
+                              <option value="NI">Nicaragua</option>
+                              <option value="NE">Niger</option>
+                              <option value="NG">Nigeria</option>
+                              <option value="NU">Niue</option>
+                              <option value="NF">Norfolk Island</option>
+                              <option value="MP">Northern Mariana Islands</option>
+                              <option value="NO">Norway</option>
+                              <option value="OM">Oman</option>
+                              <option value="PK">Pakistan</option>
+                              <option value="PW">Palau</option>
+                              <option value="PS">Palestinian Territory, Occupied</option>
+                              <option value="PA">Panama</option>
+                              <option value="PG">Papua New Guinea</option>
+                              <option value="PY">Paraguay</option>
+                              <option value="PE">Peru</option>
+                              <option value="PH">Philippines</option>
+                              <option value="PN">Pitcairn</option>
+                              <option value="PL">Poland</option>
+                              <option value="PT">Portugal</option>
+                              <option value="PR">Puerto Rico</option>
+                              <option value="QA">Qatar</option>
+                              <option value="RE">Réunion</option>
+                              <option value="RO">Romania</option>
+                              <option value="RU">Russian Federation</option>
+                              <option value="RW">Rwanda</option>
+                              <option value="BL">Saint Barthélemy</option>
+                              <option value="SH">Saint Helena</option>
+                              <option value="KN">Saint Kitts and Nevis</option>
+                              <option value="LC">Saint Lucia</option>
+                              <option value="MF">Saint Martin (French part)</option>
+                              <option value="PM">Saint Pierre and Miquelon</option>
+                              <option value="VC">Saint Vincent and the Grenadines</option>
+                              <option value="WS">Samoa</option>
+                              <option value="SM">San Marino</option>
+                              <option value="ST">Sao Tome and Principe</option>
+                              <option value="SA">Saudi Arabia</option>
+                              <option value="SN">Senegal</option>
+                              <option value="RS">Serbia</option>
+                              <option value="SC">Seychelles</option>
+                              <option value="SL">Sierra Leone</option>
+                              <option value="SG">Singapore</option>
+                              <option value="SK">Slovakia</option>
+                              <option value="SI">Slovenia</option>
+                              <option value="SB">Solomon Islands</option>
+                              <option value="SO">Somalia</option>
+                              <option value="ZA">South Africa</option>
+                              <option value="GS">South Georgia and the South Sandwich Islands</option>
+                              <option value="ES">Spain</option>
+                              <option value="LK">Sri Lanka</option>
+                              <option value="SD">Sudan</option>
+                              <option value="SR">Suriname</option>
+                              <option value="SJ">Svalbard and Jan Mayen</option>
+                              <option value="SZ">Swaziland</option>
+                              <option value="SE">Sweden</option>
+                              <option value="CH">Switzerland</option>
+                              <option value="SY">Syrian Arab Republic</option>
+                              <option value="TW">Taiwan, Province of China</option>
+                              <option value="TJ">Tajikistan</option>
+                              <option value="TZ">Tanzania, United Republic of</option>
+                              <option value="TH">Thailand</option>
+                              <option value="TL">Timor-Leste</option>
+                              <option value="TG">Togo</option>
+                              <option value="TK">Tokelau</option>
+                              <option value="TO">Tonga</option>
+                              <option value="TT">Trinidad and Tobago</option>
+                              <option value="TN">Tunisia</option>
+                              <option value="TR">Turkey</option>
+                              <option value="TM">Turkmenistan</option>
+                              <option value="TC">Turks and Caicos Islands</option>
+                              <option value="TV">Tuvalu</option>
+                              <option value="UG">Uganda</option>
+                              <option value="UA">Ukraine</option>
+                              <option value="AE">United Arab Emirates</option>
+                              <option value="GB">United Kingdom</option>
+                              <option value="US">United States</option>
+                              <option value="UM">United States Minor Outlying Islands</option>
+                              <option value="UY">Uruguay</option>
+                              <option value="UZ">Uzbekistan</option>
+                              <option value="VU">Vanuatu</option>
+                              <option value="VE">Venezuela</option>
+                              <option value="VN">Viet Nam</option>
+                              <option value="VG">Virgin Islands, British</option>
+                              <option value="VI">Virgin Islands, U.S.</option>
+                              <option value="WF">Wallis and Futuna</option>
+                              <option value="EH">Western Sahara</option>
+                              <option value="YE">Yemen</option>
+                              <option value="ZM">Zambia</option>
+                              <option value="ZW">Zimbabwe</option>
+                            </select>
+                          </div>
 
-                    <div className="pt-2 flex items-center gap-3">
-                      <button
-                        type="button"
-                        disabled={!isBrandDirty() || brandData.name.trim() === '' || isSavingBrand}
-                        className={`px-4 py-1.5 rounded-md transition-colors text-sm ${
-                          !isBrandDirty() || brandData.name.trim() === '' || isSavingBrand
-                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                            : 'bg-black text-white hover:bg-gray-800'
-                        }`}
-                        onClick={async () => {
-                          if (brandData.name.trim() === '') {
-                            setBrandError('Business name is required');
-                            return;
-                          }
-                          setBrandError('');
-                          setIsSavingBrand(true);
-                          setBrandSaved(false);
-                          try {
-                            const res = await fetch('/api/business', {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              credentials: 'include',
-                              body: JSON.stringify({
-                                name: brandData.name,
-                                slug: brandData.bookingUrl,
-                                industry: brandData.industry,
-                                about: brandData.about,
-                                tagline: brandData.tagline,
-                              })
-                            });
-                            if (!res.ok) {
-                              const err = await res.json().catch(() => ({}));
-                              setBrandError(err.error || 'Failed to save changes');
-                              return;
-                            }
-                            const updated = await res.json();
-                            const normalized = {
-                              name: updated?.name ?? brandData.name,
-                              bookingUrl: updated?.slug ?? brandData.bookingUrl,
-                              industry: updated?.industry ?? '',
-                              about: updated?.about ?? '',
-                              tagline: updated?.tagline ?? '',
-                            };
-                            setBrandData(normalized);
-                            setOriginalBrandData(normalized);
-                            setBrandSaved(true);
-                            // Clear saved indicator after a short delay
-                            setTimeout(() => setBrandSaved(false), 1500);
-                          } catch (e) {
-                            console.error(e);
-                            setBrandError('Failed to save changes');
-                          } finally {
-                            setIsSavingBrand(false);
-                          }
-                        }}
-                      >
-                        {isSavingBrand ? 'Saving…' : isBrandDirty() ? 'Save changes' : (brandSaved ? 'Saved' : 'Save changes')}
-                      </button>
-                      {!isBrandDirty() && brandSaved && (
-                        <span className="text-xs text-green-600">Changes saved</span>
-                      )}
-                    </div>
-                  </form>
+                          <div>
+                            <label htmlFor="location-address" className="block text-xs text-gray-700 mb-1">Address</label>
+                            <input
+                              type="text"
+                              id="location-address"
+                              value={locationData.address}
+                              onChange={(e) => {
+                                setLocationData(prev => ({ ...prev, address: e.target.value }));
+                                setHasLocationChanges(true);
+                              }}
+                              className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                              placeholder="Enter street name, apt, suite, floor"
+                            />
+                          </div>
+
+                          <div>
+                            <label htmlFor="location-city" className="block text-xs text-gray-700 mb-1">City</label>
+                            <input
+                              type="text"
+                              id="location-city"
+                              value={locationData.city}
+                              onChange={(e) => {
+                                setLocationData(prev => ({ ...prev, city: e.target.value }));
+                                setHasLocationChanges(true);
+                              }}
+                              className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                              placeholder="Enter city"
+                            />
+                          </div>
+
+                          <div>
+                            <label htmlFor="location-state" className="block text-xs text-gray-700 mb-1">State</label>
+                            <input
+                              type="text"
+                              id="location-state"
+                              value={locationData.state}
+                              onChange={(e) => {
+                                setLocationData(prev => ({ ...prev, state: e.target.value }));
+                                setHasLocationChanges(true);
+                              }}
+                              className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                              placeholder="Enter state"
+                            />
+                          </div>
+
+                          <div>
+                            <label htmlFor="location-zipCode" className="block text-xs text-gray-700 mb-1">Zip code</label>
+                            <input
+                              type="text"
+                              id="location-zipCode"
+                              value={locationData.zipCode}
+                              onChange={(e) => {
+                                setLocationData(prev => ({ ...prev, zipCode: e.target.value }));
+                                setHasLocationChanges(true);
+                              }}
+                              className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                              placeholder="Enter zip code"
+                            />
+                          </div>
+
+                          {/* Save Changes Button */}
+                          <div className="pt-2 flex items-center gap-3">
+                            <button
+                              type="button"
+                              disabled={!hasLocationChanges || isSavingLocation}
+                              className={`px-4 py-1.5 rounded-md transition-colors text-sm ${
+                                !hasLocationChanges || isSavingLocation
+                                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                  : 'bg-black text-white hover:bg-gray-800'
+                              }`}
+                              onClick={async () => {
+                                setLocationError('');
+                                setIsSavingLocation(true);
+                                try {
+                                  const res = await fetch('/api/business', {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    credentials: 'include',
+                                    body: JSON.stringify({
+                                      name: brandData.name, // Include current business name to avoid validation error
+                                      country: locationData.country,
+                                      address: locationData.address,
+                                      city: locationData.city,
+                                      state: locationData.state,
+                                      zipCode: locationData.zipCode,
+                                    })
+                                  });
+                                  if (!res.ok) {
+                                    const err = await res.json().catch(() => ({}));
+                                    setLocationError(err.error || 'Failed to save changes');
+                                    return;
+                                  }
+                                  setOriginalLocationData(locationData);
+                                  setHasLocationChanges(false);
+                                  setLocationSaved(true);
+                                  setTimeout(() => setLocationSaved(false), 1500);
+                                } catch (e) {
+                                  console.error(e);
+                                  setLocationError('Failed to save changes');
+                                } finally {
+                                  setIsSavingLocation(false);
+                                }
+                              }}
+                            >
+                              {isSavingLocation ? 'Saving…' : hasLocationChanges ? 'Save changes' : (locationSaved ? 'Saved' : 'Save changes')}
+                            </button>
+                            {!hasLocationChanges && locationSaved && (
+                              <span className="text-xs text-green-600">Changes saved</span>
+                            )}
+                          </div>
+                        </form>
+                      </div>
+                    )}
+
+                    {/* Business Hours Tab */}
+                    {selectedBrandTab === 'business-hours' && (
+                      <div className="space-y-4">
+                        <div className="space-y-4">
+                          {workingHoursData.map((day, index) => (
+                            <div key={day.dayName} className="flex items-center space-x-6">
+                              {/* Toggle Switch */}
+                              <button
+                                onClick={() => {
+                                  const updated = [...workingHoursData];
+                                  updated[index].isEnabled = !updated[index].isEnabled;
+                                  setWorkingHoursData(updated);
+                                  setHasWorkingHoursChanges(true);
+                                }}
+                                className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
+                                  day.isEnabled ? 'bg-black' : 'bg-gray-200'
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${
+                                    day.isEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                                  }`}
+                                />
+                              </button>
+
+                              {/* Day Name */}
+                              <span className="text-xs text-gray-900 w-20">{day.dayName}</span>
+
+                              {/* Time Inputs or Closed Text */}
+                              {day.isEnabled ? (
+                                <div className="flex items-center space-x-3">
+                                  <input
+                                    type="time"
+                                    value={day.openTime}
+                                    onChange={(e) => {
+                                      const updated = [...workingHoursData];
+                                      updated[index].openTime = e.target.value;
+                                      setWorkingHoursData(updated);
+                                      setHasWorkingHoursChanges(true);
+                                    }}
+                                    className="px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                                  />
+                                  <span className="text-gray-400 text-xs">-</span>
+                                  <input
+                                    type="time"
+                                    value={day.closeTime}
+                                    onChange={(e) => {
+                                      const updated = [...workingHoursData];
+                                      updated[index].closeTime = e.target.value;
+                                      setWorkingHoursData(updated);
+                                      setHasWorkingHoursChanges(true);
+                                    }}
+                                    className="px-1.5 py-0.5 border border-gray-300 rounded text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent"
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-gray-500 text-xs font-medium">Closed</span>
+                              )}
+
+                              {/* Saved indicator for Monday (as shown in the image) */}
+                              {day.dayName === "Monday" && !hasWorkingHoursChanges && workingHoursSaved && (
+                                <div className="w-3 h-3 bg-green-500 rounded flex items-center justify-center ml-2">
+                                  <svg className="w-1.5 h-1.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Error Display */}
+                        {workingHoursError && (
+                          <div className="text-xs text-red-600">{workingHoursError}</div>
+                        )}
+
+                        {/* Save Changes Button */}
+                        <div className="mt-8 flex justify-start">
+                          <button
+                            type="button"
+                            disabled={!hasWorkingHoursChanges || isSavingWorkingHours}
+                            className={`px-4 py-1.5 rounded-md transition-colors text-sm ${
+                              !hasWorkingHoursChanges || isSavingWorkingHours
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-black text-white hover:bg-gray-800'
+                            }`}
+                            onClick={handleSaveWorkingHours}
+                          >
+                            {isSavingWorkingHours ? 'Saving…' : hasWorkingHoursChanges ? 'Save changes' : (workingHoursSaved ? 'Saved' : 'Save changes')}
+                          </button>
+                          {!hasWorkingHoursChanges && workingHoursSaved && (
+                            <span className="text-xs text-green-600 ml-2">Changes saved</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+
+                  </>
                 )}
               </div>
             ) : (

@@ -24,6 +24,8 @@ interface Business {
   name: string;
   profilePic: string | null;
   team: TeamMember[];
+  theme?: string | null;
+  brandColor?: string | null;
 }
 
 interface DetailsPageClientProps {
@@ -64,8 +66,15 @@ export default function DetailsPageClient({
     comments: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+
+  // Validation function to check if required fields are filled
+  const isFormValid = () => {
+    return formData.name.trim() !== '' && 
+           formData.email.trim() !== '' && 
+           formData.phone.trim() !== '';
+  };
 
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -178,18 +187,18 @@ export default function DetailsPageClient({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className={`min-h-screen ${business.theme === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
+      <div className={`${business.theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b shadow-sm`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-10">
             <button
               onClick={() => router.back()}
-              className="flex items-center text-black hover:text-gray-700 mr-3"
+              className={`flex items-center ${business.theme === 'dark' ? 'text-white hover:text-gray-300' : 'text-black hover:text-gray-700'} mr-3`}
             >
               <ArrowLeftIcon className="h-4 w-4 font-bold" />
             </button>
-            <h1 className="text-base font-semibold text-gray-900">Your details</h1>
+            <h1 className={`text-base font-semibold ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Your details</h1>
           </div>
         </div>
       </div>
@@ -198,22 +207,26 @@ export default function DetailsPageClient({
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left Column - Form */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className={`${business.theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-4`}>
             <form onSubmit={handleSubmit} className="space-y-3">
               {/* Main details section */}
               <div>
-                <h4 className="text-xs font-medium text-gray-700 mb-2">Main details</h4>
+                <h4 className={`text-xs font-medium ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Main details</h4>
                 <div className="space-y-3">
                   {/* Full Name */}
                   <div>
-                    <label className="block text-xs text-gray-700 mb-1">
+                    <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Full name *
                     </label>
                     <input
                       type="text"
                       value={formData.name}
                       onChange={(e) => handleInputChange("name", e.target.value)}
-                      className={`w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900 ${
+                      className={`w-full px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-400 text-xs ${
+                        business.theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 focus:ring-gray-500' 
+                          : 'border-gray-300 text-gray-900 focus:ring-black'
+                      } ${
                         errors.name ? "border-red-500" : ""
                       }`}
                       placeholder="Enter name"
@@ -226,7 +239,7 @@ export default function DetailsPageClient({
 
                   {/* Phone */}
                   <div>
-                    <label className="block text-xs text-gray-700 mb-1">
+                    <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Primary phone
                     </label>
                     <PhoneInput
@@ -247,14 +260,18 @@ export default function DetailsPageClient({
 
                   {/* Email */}
                   <div>
-                    <label className="block text-xs text-gray-700 mb-1">
+                    <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Primary email
                     </label>
                     <input
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange("email", e.target.value)}
-                      className={`w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900 ${
+                      className={`w-full px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-400 text-xs ${
+                        business.theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 focus:ring-gray-500' 
+                          : 'border-gray-300 text-gray-900 focus:ring-black'
+                      } ${
                         errors.email ? "border-red-500" : ""
                       }`}
                       placeholder="Enter email address"
@@ -266,14 +283,18 @@ export default function DetailsPageClient({
 
                   {/* Company */}
                   <div>
-                    <label className="block text-xs text-gray-700 mb-1">
+                    <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Company name
                     </label>
                     <input
                       type="text"
                       value={formData.company}
                       onChange={(e) => handleInputChange("company", e.target.value)}
-                      className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                      className={`w-full px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-400 text-xs ${
+                        business.theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 focus:ring-gray-500' 
+                          : 'border-gray-300 text-gray-900 focus:ring-black'
+                      }`}
                       placeholder="Enter company name"
                     />
                   </div>
@@ -282,17 +303,21 @@ export default function DetailsPageClient({
 
               {/* Address section */}
               <div>
-                <h4 className="text-xs font-medium text-gray-700 mb-2">Address</h4>
+                <h4 className={`text-xs font-medium ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Address</h4>
                 <div className="space-y-3">
                   {/* Country */}
                   <div>
-                    <label className="block text-xs text-gray-700 mb-1">
+                    <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Country
                     </label>
                     <select 
                       value={formData.country}
                       onChange={(e) => handleInputChange("country", e.target.value)}
-                      className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent bg-white text-xs text-gray-900"
+                      className={`w-full px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-xs ${
+                        business.theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 focus:ring-gray-500' 
+                          : 'bg-white border-gray-300 text-gray-900 focus:ring-black'
+                      }`}
                     >
                       <option value="">Select a country</option>
                       <option value="AF">Afghanistan</option>
@@ -544,56 +569,72 @@ export default function DetailsPageClient({
 
                   {/* Address */}
                   <div>
-                    <label className="block text-xs text-gray-700 mb-1">
+                    <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Address
                     </label>
                     <input
                       type="text"
                       value={formData.address}
                       onChange={(e) => handleInputChange("address", e.target.value)}
-                      className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                      className={`w-full px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-400 text-xs ${
+                        business.theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 focus:ring-gray-500' 
+                          : 'border-gray-300 text-gray-900 focus:ring-black'
+                      }`}
                       placeholder="Enter street name, apt, suite, floor"
                     />
                   </div>
 
                   {/* City */}
                   <div>
-                    <label className="block text-xs text-gray-700 mb-1">
+                    <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       City
                     </label>
                     <input
                       type="text"
                       value={formData.city}
                       onChange={(e) => handleInputChange("city", e.target.value)}
-                      className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                      className={`w-full px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-400 text-xs ${
+                        business.theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 focus:ring-gray-500' 
+                          : 'border-gray-300 text-gray-900 focus:ring-black'
+                      }`}
                       placeholder="Enter city"
                     />
                   </div>
 
                   {/* State */}
                   <div>
-                    <label className="block text-xs text-gray-700 mb-1">
+                    <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       State
                     </label>
                     <input
                       type="text"
                       value={formData.state}
                       onChange={(e) => handleInputChange("state", e.target.value)}
-                      className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                      className={`w-full px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-400 text-xs ${
+                        business.theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 focus:ring-gray-500' 
+                          : 'border-gray-300 text-gray-900 focus:ring-black'
+                      }`}
                       placeholder="Enter state"
                     />
                   </div>
 
                   {/* Zip Code */}
                   <div>
-                    <label className="block text-xs text-gray-700 mb-1">
+                    <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Zip code
                     </label>
                     <input
                       type="text"
                       value={formData.zipCode}
                       onChange={(e) => handleInputChange("zipCode", e.target.value)}
-                      className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                      className={`w-full px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:border-transparent placeholder-gray-400 text-xs ${
+                        business.theme === 'dark' 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 focus:ring-gray-500' 
+                          : 'border-gray-300 text-gray-900 focus:ring-black'
+                      }`}
                       placeholder="Enter zip code"
                     />
                   </div>
@@ -602,35 +643,48 @@ export default function DetailsPageClient({
 
               {/* Comments */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className={`block text-xs font-medium ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                   Comments
                 </label>
                 <textarea
                   value={formData.comments}
                   onChange={(e) => handleInputChange("comments", e.target.value)}
                   rows={2}
-                  className="w-full p-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent"
+                  className={`w-full p-1.5 border rounded text-xs focus:outline-none focus:ring-1 focus:border-transparent ${
+                    business.theme === 'dark' 
+                      ? 'bg-gray-700 border-gray-600 text-gray-100 focus:ring-gray-500' 
+                      : 'border-gray-300 text-gray-900 focus:ring-black'
+                  }`}
                   placeholder="Any additional information..."
                 />
               </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full mt-4 py-2 px-3 rounded-lg font-medium transition-colors text-sm bg-black text-white hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? "Creating Booking..." : "Confirm"}
-              </button>
+                             {/* Submit Button */}
+               <button
+                 type="submit"
+                 disabled={isSubmitting || !isFormValid()}
+                 className={`w-full mt-4 py-2 px-3 rounded-lg font-medium transition-colors text-sm ${
+                   isFormValid() 
+                     ? 'text-white hover:opacity-90' 
+                     : 'text-white bg-gray-400 cursor-not-allowed'
+                 } disabled:opacity-50 disabled:cursor-not-allowed`}
+                 style={{
+                   backgroundColor: isFormValid() 
+                     ? '#000000' // Black background when form is valid
+                     : '#9CA3AF' // Gray background when form is invalid
+                 }}
+               >
+                 {isSubmitting ? "Creating Booking..." : "Confirm"}
+               </button>
             </form>
           </div>
 
           {/* Right Column - Summary */}
           <div className="space-y-4">
             {/* Business Info */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className={`${business.theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-4`}>
               <div className="text-center">
-                <div className="w-12 h-12 mx-auto mb-2 bg-gray-200 rounded-full flex items-center justify-center">
+                <div className={`w-12 h-12 mx-auto mb-2 ${business.theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} rounded-full flex items-center justify-center`}>
                   {business.profilePic ? (
                     <img
                       src={business.profilePic}
@@ -638,49 +692,52 @@ export default function DetailsPageClient({
                       className="w-full h-full rounded-full object-cover"
                     />
                   ) : (
-                    <span className="text-lg font-bold text-gray-600">
+                    <span className={`text-lg font-bold ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
                       {business.name.charAt(0).toUpperCase()}
                     </span>
                   )}
                 </div>
-                <h3 className="text-base font-semibold text-gray-900 mb-1">{business.name}</h3>
+                <h3 className={`text-base font-semibold ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-1`}>{business.name}</h3>
               </div>
             </div>
 
             {/* Summary */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <h3 className="text-base font-semibold text-gray-900 mb-3">Summary</h3>
+            <div className={`${business.theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-4`}>
+              <h3 className={`text-base font-semibold ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3`}>Summary</h3>
               
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Service</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedService.name}</span>
+                  <span className={`text-sm ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Service</span>
+                  <span className={`text-sm font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{selectedService.name}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Duration</span>
-                  <span className="text-sm font-medium text-gray-900">{formatDuration(selectedService.duration)}</span>
+                  <span className={`text-sm ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Duration</span>
+                  <span className={`text-sm font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatDuration(selectedService.duration)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Provider</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedTeamMember.name}</span>
+                  <span className={`text-sm ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Provider</span>
+                  <span className={`text-sm font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{selectedTeamMember.name}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Date & Time</span>
+                  <span className={`text-sm ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Date & Time</span>
                   <div className="flex items-center">
                     <button
-                      onClick={() => router.push(`/b/${slug}/book/time?serviceId=${serviceId}&teamMemberId=${teamMemberId}&selectedDate=${selectedDate}&selectedTime=${selectedTime}`)}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors mr-2"
+                      onClick={() => router.back()}
+                      className={`p-1 rounded transition-colors mr-2 ${
+                        business.theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                      }`}
+                      title="Go back to edit date and time"
                     >
-                      <PencilIcon className="h-3 w-3 text-gray-500" />
+                      <PencilIcon className={`h-3 w-3 ${business.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
                     </button>
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className={`text-sm font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       {formatDate(selectedDate)} at {formatTime(selectedTime)}
                     </span>
                   </div>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Price</span>
-                  <span className="text-sm font-medium text-gray-900">{formatPrice(selectedService.price)}</span>
+                  <span className={`text-sm ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Price</span>
+                  <span className={`text-sm font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatPrice(selectedService.price)}</span>
                 </div>
               </div>
             </div>
@@ -688,59 +745,79 @@ export default function DetailsPageClient({
         </div>
       </div>
 
-      {/* Booking Confirmation Modal */}
-      {showConfirmationModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 relative">
-            <div className="p-6">
-              <div className="text-center mb-4">
-                <div className="w-12 h-12 mx-auto mb-3 bg-green-100 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Booking Confirmed!
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Thank you for your booking. We'll see you soon!
-                </p>
-              </div>
+             {/* Booking Confirmation Modal */}
+       {showConfirmationModal && (
+         <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+           <div className={`${business.theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full mx-4 relative border`}>
+             {/* Close button (X) in top right corner */}
+             <button
+               onClick={() => {
+                 setShowConfirmationModal(false);
+                 router.push(`/b/${slug}`);
+               }}
+               className={`absolute top-3 right-3 p-1 rounded-full transition-colors ${
+                 business.theme === 'dark' 
+                   ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' 
+                   : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+               }`}
+             >
+               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+               </svg>
+             </button>
+             
+             <div className="p-6">
+               <div className="text-center mb-4">
+                 <div className={`w-12 h-12 mx-auto mb-3 ${business.theme === 'dark' ? 'bg-green-900' : 'bg-green-100'} rounded-full flex items-center justify-center`}>
+                   <svg className={`w-6 h-6 ${business.theme === 'dark' ? 'text-green-400' : 'text-green-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                   </svg>
+                 </div>
+                 <h3 className={`text-lg font-semibold ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-2`}>
+                   Booking Confirmed!
+                 </h3>
+                 <p className={`text-sm ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} mb-4`}>
+                   Thank you for your booking. We'll see you soon!
+                 </p>
+               </div>
 
               {/* Booking Summary */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">Booking Summary</h4>
+              <div className={`${business.theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-4 mb-6`}>
+                <h4 className={`text-sm font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3`}>Booking Summary</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Service:</span>
-                    <span className="font-medium text-gray-900">{selectedService.name}</span>
+                    <span className={business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Service:</span>
+                    <span className={`font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{selectedService.name}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Date:</span>
-                    <span className="font-medium text-gray-900">{formatDate(selectedDate)}</span>
+                    <span className={business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Date:</span>
+                    <span className={`font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatDate(selectedDate)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Time:</span>
-                    <span className="font-medium text-gray-900">{formatTime(selectedTime)}</span>
+                    <span className={business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Time:</span>
+                    <span className={`font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatTime(selectedTime)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Provider:</span>
-                    <span className="font-medium text-gray-900">{selectedTeamMember.name}</span>
+                    <span className={business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Provider:</span>
+                    <span className={`font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{selectedTeamMember.name}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-center">
-                <button
-                  onClick={() => {
-                    setShowConfirmationModal(false);
-                    router.push(`/b/${slug}`);
-                  }}
-                  className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm font-medium"
-                >
-                  OK
-                </button>
-              </div>
+                             <div className="flex justify-center">
+                 <button
+                   onClick={() => {
+                     setShowConfirmationModal(false);
+                     router.push(`/b/${slug}`);
+                   }}
+                   className="px-4 py-2 text-white rounded-md hover:opacity-90 transition-colors text-sm font-medium"
+                   style={{
+                     backgroundColor: '#000000' // Black background
+                   }}
+                 >
+                   OK
+                 </button>
+               </div>
             </div>
           </div>
         </div>

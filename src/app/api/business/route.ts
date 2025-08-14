@@ -40,6 +40,21 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Create default opening hours (8:00-17:00 for all days)
+    const defaultOpeningHours = [
+      { dayOfWeek: 0, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Sunday
+      { dayOfWeek: 1, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Monday
+      { dayOfWeek: 2, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Tuesday
+      { dayOfWeek: 3, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Wednesday
+      { dayOfWeek: 4, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Thursday
+      { dayOfWeek: 5, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Friday
+      { dayOfWeek: 6, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Saturday
+    ];
+
+    await prisma.openingHour.createMany({
+      data: defaultOpeningHours,
+    });
+
     return NextResponse.json(business, { status: 201 });
   } catch (error) {
     console.error("Error creating business:", error);
@@ -60,10 +75,42 @@ export async function GET() {
 
     const business = await prisma.business.findFirst({
       where: { ownerId: session.user.id },
+      include: {
+        openingHours: true,
+      },
     });
 
     if (!business) {
       return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+
+    // If business has no opening hours, create default ones
+    if (!business.openingHours || business.openingHours.length === 0) {
+      const defaultOpeningHours = [
+        { dayOfWeek: 0, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Sunday
+        { dayOfWeek: 1, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Monday
+        { dayOfWeek: 2, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Tuesday
+        { dayOfWeek: 3, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Wednesday
+        { dayOfWeek: 4, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Thursday
+        { dayOfWeek: 5, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Friday
+        { dayOfWeek: 6, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Saturday
+      ];
+
+      await prisma.openingHour.createMany({
+        data: defaultOpeningHours,
+      });
+
+      // Re-fetch business with the new opening hours
+      const updatedBusiness = await prisma.business.findFirst({
+        where: { ownerId: session.user.id },
+        include: {
+          openingHours: true,
+        },
+      });
+      
+      if (updatedBusiness) {
+        business.openingHours = updatedBusiness.openingHours;
+      }
     }
 
     // Re-read the document via raw Mongo to include any fields not known to the Prisma client
@@ -82,6 +129,16 @@ export async function GET() {
           tagline: first.tagline ?? null,
           industry: first.industry ?? null,
           about: first.about ?? null,
+          openingHours: business.openingHours,
+          contactEmail: first.contactEmail ?? null,
+          contactPhone: first.contactPhone ?? null,
+          country: first.country ?? null,
+          address: first.address ?? null,
+          city: first.city ?? null,
+          state: first.state ?? null,
+          zipCode: first.zipCode ?? null,
+          theme: first.theme ?? null,
+          brandColor: first.brandColor ?? null,
         } as any;
       }
     } catch (e) {
@@ -113,9 +170,36 @@ export async function PUT(request: NextRequest) {
       industry,
       about,
       tagline,
-    }: { name?: string; slug?: string; industry?: string; about?: string; tagline?: string } = body || {};
+      contactEmail,
+      contactPhone,
+      openingHours,
+      country,
+      address,
+      city,
+      state,
+      zipCode,
+      theme,
+      brandColor,
+    }: { 
+      name?: string; 
+      slug?: string; 
+      industry?: string; 
+      about?: string; 
+      tagline?: string;
+      contactEmail?: string;
+      contactPhone?: string;
+      openingHours?: Array<{ dayOfWeek: number; openTime: string; closeTime: string }>;
+      country?: string;
+      address?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+      theme?: string;
+      brandColor?: string;
+    } = body || {};
 
-    if (!name || typeof name !== "string" || name.trim().length === 0) {
+    // Only require name if we're updating business details (not just contact details)
+    if (name !== undefined && (!name || typeof name !== "string" || name.trim().length === 0)) {
       return NextResponse.json({ error: "Business name is required" }, { status: 400 });
     }
 
@@ -172,22 +256,72 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Persist name via Prisma client (always supported)
-    const updated = await prisma.business.update({
-      where: { id: business.id },
-      data: ({ name: name.trim() } as any),
-    });
+    // Persist name via Prisma client (only if provided)
+    let updated = business;
+    if (name !== undefined) {
+      updated = await prisma.business.update({
+        where: { id: business.id },
+        data: ({ name: name.trim() } as any),
+      });
+    }
 
     // Persist other fields via raw Mongo command to avoid client-version mismatches
     const $set: Record<string, string | null> = {};
-    const normIndustry = normalizeOptional(industry);
-    const normAbout = normalizeOptional(about);
-    const normTagline = normalizeOptional(tagline);
-    const normSlug = sanitizedSlug ?? null;
-    if (typeof normSlug === 'string' || normSlug === null) $set.slug = normSlug;
-    if (typeof normIndustry === 'string' || normIndustry === null) $set.industry = normIndustry;
-    if (typeof normAbout === 'string' || normAbout === null) $set.about = normAbout;
-    if (typeof normTagline === 'string' || normTagline === null) $set.tagline = normTagline;
+    
+    // Only update fields that are actually provided in the request
+    // This prevents accidentally setting fields to null when they're not included
+    if (industry !== undefined) {
+      const normIndustry = normalizeOptional(industry);
+      if (typeof normIndustry === 'string' || normIndustry === null) $set.industry = normIndustry;
+    }
+    if (about !== undefined) {
+      const normAbout = normalizeOptional(about);
+      if (typeof normAbout === 'string' || normAbout === null) $set.about = normAbout;
+    }
+    if (tagline !== undefined) {
+      const normTagline = normalizeOptional(tagline);
+      if (typeof normTagline === 'string' || normTagline === null) $set.tagline = normTagline;
+    }
+    if (incomingSlug !== undefined) {
+      const normSlug = sanitizedSlug ?? null;
+      if (typeof normSlug === 'string' || normSlug === null) $set.slug = normSlug;
+    }
+    if (contactEmail !== undefined) {
+      const normContactEmail = normalizeOptional(contactEmail);
+      if (typeof normContactEmail === 'string' || normContactEmail === null) $set.contactEmail = normContactEmail;
+    }
+    if (contactPhone !== undefined) {
+      const normContactPhone = normalizeOptional(contactPhone);
+      if (typeof normContactPhone === 'string' || normContactPhone === null) $set.contactPhone = normContactPhone;
+    }
+    if (country !== undefined) {
+      const normCountry = normalizeOptional(country);
+      if (typeof normCountry === 'string' || normCountry === null) $set.country = normCountry;
+    }
+    if (address !== undefined) {
+      const normAddress = normalizeOptional(address);
+      if (typeof normAddress === 'string' || normAddress === null) $set.address = normAddress;
+    }
+    if (city !== undefined) {
+      const normCity = normalizeOptional(city);
+      if (typeof normCity === 'string' || normCity === null) $set.city = normCity;
+    }
+    if (state !== undefined) {
+      const normState = normalizeOptional(state);
+      if (typeof normState === 'string' || normState === null) $set.state = normState;
+    }
+    if (zipCode !== undefined) {
+      const normZipCode = normalizeOptional(zipCode);
+      if (typeof normZipCode === 'string' || normZipCode === null) $set.zipCode = normZipCode;
+    }
+    if (theme !== undefined) {
+      const normTheme = normalizeOptional(theme);
+      if (typeof normTheme === 'string' || normTheme === null) $set.theme = normTheme;
+    }
+    if (brandColor !== undefined) {
+      const normBrandColor = normalizeOptional(brandColor);
+      if (typeof normBrandColor === 'string' || normBrandColor === null) $set.brandColor = normBrandColor;
+    }
     try {
       if (Object.keys($set).length > 0) {
         await (prisma as any).$runCommandRaw({
@@ -206,14 +340,49 @@ export async function PUT(request: NextRequest) {
       console.warn('Raw update failed, proceeding with name-only update:', e);
     }
 
+    // Handle opening hours update if provided
+    if (openingHours && Array.isArray(openingHours)) {
+      try {
+        // First, delete existing opening hours for this business
+        await prisma.openingHour.deleteMany({
+          where: { businessId: business.id }
+        });
+
+        // Then create new opening hours
+        if (openingHours.length > 0) {
+          await prisma.openingHour.createMany({
+            data: openingHours.map(hour => ({
+              dayOfWeek: hour.dayOfWeek,
+              openTime: hour.openTime,
+              closeTime: hour.closeTime,
+              businessId: business.id,
+            }))
+          });
+        }
+      } catch (e) {
+        console.warn('Opening hours update failed:', e);
+        // Don't fail the entire request if opening hours update fails
+      }
+    }
+
     // Also set cookies as a temporary overlay for SSR pages
     const response = NextResponse.json(
       {
         ...updated,
-        // Echo normalized values in response body
-        industry: normIndustry,
-        about: normAbout,
-        tagline: normTagline,
+        // Echo normalized values in response body - only include fields that were updated
+        ...(industry !== undefined && { industry: normalizeOptional(industry) }),
+        ...(about !== undefined && { about: normalizeOptional(about) }),
+        ...(tagline !== undefined && { tagline: normalizeOptional(tagline) }),
+        ...(incomingSlug !== undefined && { slug: sanitizedSlug }),
+        ...(contactEmail !== undefined && { contactEmail: normalizeOptional(contactEmail) }),
+        ...(contactPhone !== undefined && { contactPhone: normalizeOptional(contactPhone) }),
+        ...(country !== undefined && { country: normalizeOptional(country) }),
+        ...(address !== undefined && { address: normalizeOptional(address) }),
+        ...(city !== undefined && { city: normalizeOptional(city) }),
+        ...(state !== undefined && { state: normalizeOptional(state) }),
+        ...(zipCode !== undefined && { zipCode: normalizeOptional(zipCode) }),
+        ...(theme !== undefined && { theme: normalizeOptional(theme) }),
+        ...(brandColor !== undefined && { brandColor: normalizeOptional(brandColor) }),
       } as any,
       { status: 200 }
     );
@@ -231,9 +400,11 @@ export async function PUT(request: NextRequest) {
         });
       }
     };
-    setOrClear('brand_industry', normIndustry ?? '');
-    setOrClear('brand_about', normAbout ?? '');
-    setOrClear('brand_tagline', normTagline ?? '');
+    setOrClear('brand_industry', industry ?? '');
+    setOrClear('brand_about', about ?? '');
+    setOrClear('brand_tagline', tagline ?? '');
+    setOrClear('brand_theme', theme ?? '');
+    setOrClear('brand_color', brandColor ?? '');
 
     return response;
   } catch (error) {

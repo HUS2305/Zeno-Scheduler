@@ -18,14 +18,21 @@ export default function DateTimePicker({
   className = ""
 }: DateTimePickerProps) {
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate));
   const calendarRef = useRef<HTMLDivElement>(null);
+  const timePickerRef = useRef<HTMLDivElement>(null);
 
-  // Close calendar when clicking outside
+  // Close calendar and time picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
         setShowCalendar(false);
+      }
+      // Close time picker when clicking outside
+      const target = event.target as Node;
+      if (!target.closest('.time-picker-container')) {
+        setShowTimePicker(false);
       }
     };
 
@@ -57,12 +64,20 @@ export default function DateTimePicker({
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
+    
+    // Calculate start date to show Monday as first day of week
     const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    const dayOfWeek = firstDay.getDay();
+    // Adjust to start week on Monday (0 = Sunday, 1 = Monday, etc.)
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startDate.setDate(startDate.getDate() - daysToSubtract);
     
     const days = [];
     const endDate = new Date(lastDay);
-    endDate.setDate(endDate.getDate() + (6 - lastDay.getDay()));
+    // Calculate end date to complete the week grid
+    const lastDayOfWeek = lastDay.getDay();
+    const daysToAdd = lastDayOfWeek === 0 ? 0 : 7 - lastDayOfWeek;
+    endDate.setDate(endDate.getDate() + daysToAdd);
     
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
       days.push(new Date(date));
@@ -103,6 +118,27 @@ export default function DateTimePicker({
     return date.getMonth() === currentMonth.getMonth();
   };
 
+  // Scroll to selected time when time picker opens
+  const scrollToSelectedTime = () => {
+    if (timePickerRef.current) {
+      const selectedIndex = timeOptions.findIndex(opt => opt.value === selectedTime);
+      if (selectedIndex !== -1) {
+        const optionHeight = 32; // Approximate height of each option (py-2 = 8px top + 8px bottom + ~16px text)
+        const scrollTop = selectedIndex * optionHeight - 64; // Center the selected option (64px = 2 * optionHeight)
+        timePickerRef.current.scrollTop = Math.max(0, scrollTop);
+      }
+    }
+  };
+
+  const handleTimePickerToggle = () => {
+    const newState = !showTimePicker;
+    setShowTimePicker(newState);
+    if (newState) {
+      // Scroll to selected time after the dropdown is rendered
+      setTimeout(scrollToSelectedTime, 0);
+    }
+  };
+
   return (
     <div className={`relative ${className}`}>
       {/* Date and Time Display */}
@@ -111,7 +147,7 @@ export default function DateTimePicker({
         <div className="relative">
           <button
             onClick={() => setShowCalendar(!showCalendar)}
-            className="px-2 py-1.5 border border-gray-300 rounded-full text-xs text-left focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white flex items-center justify-between min-w-[100px]"
+                         className="px-2 py-1.5 border border-gray-300 rounded-full text-xs text-left focus:outline-none focus:ring-2 focus:ring-black text-gray-900 bg-white flex items-center justify-between min-w-[100px]"
           >
             <span className="text-gray-900">
               {selectedDate.toLocaleDateString('en-US', { 
@@ -171,7 +207,7 @@ export default function DateTimePicker({
                     onClick={() => handleDateSelect(date)}
                     className={`text-xs py-1 px-1 rounded hover:bg-gray-100 transition-colors ${
                       isSelected(date)
-                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                        ? 'bg-black text-white hover:bg-gray-800'
                         : isToday(date)
                         ? 'bg-gray-100 text-gray-900'
                         : isCurrentMonth(date)
@@ -187,26 +223,43 @@ export default function DateTimePicker({
           )}
         </div>
 
-        {/* Time Picker */}
-        <div className="relative">
-          <select
-            value={selectedTime}
-            onChange={(e) => onTimeChange(e.target.value)}
-            className="px-2 py-1.5 border border-gray-300 rounded-full text-xs text-left focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white appearance-none pr-6"
-            style={{ backgroundImage: 'none' }}
-          >
-            {timeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.display}
-              </option>
-            ))}
-          </select>
-          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
-            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+                 {/* Time Picker */}
+         <div className="relative time-picker-container">
+                       <button
+              onClick={handleTimePickerToggle}
+              className="px-2 py-1.5 border border-gray-300 rounded-full text-xs text-left focus:outline-none focus:ring-2 focus:ring-black text-gray-900 bg-white flex items-center justify-between min-w-[100px]"
+            >
+             <span className="text-gray-900">
+               {timeOptions.find(opt => opt.value === selectedTime)?.display || selectedTime}
+             </span>
+             <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+             </svg>
+           </button>
+
+                       {/* Time Picker Dropdown */}
+            {showTimePicker && (
+              <div 
+                ref={timePickerRef}
+                className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-32 overflow-y-auto"
+              >
+               {timeOptions.map((option) => (
+                 <button
+                   key={option.value}
+                   onClick={() => {
+                     onTimeChange(option.value);
+                     setShowTimePicker(false);
+                   }}
+                   className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 transition-colors ${
+                     option.value === selectedTime ? 'bg-black text-white hover:bg-gray-800' : 'text-gray-900'
+                   }`}
+                 >
+                   {option.display}
+                 </button>
+               ))}
+             </div>
+           )}
+         </div>
       </div>
     </div>
   );

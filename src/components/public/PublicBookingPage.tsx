@@ -40,6 +40,16 @@ interface Business {
   profilePic: string | null;
   tagline?: string | null;
   about?: string | null;
+  industry?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  country?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  theme?: string | null;
+  brandColor?: string | null;
   services: Service[];
   team: TeamMember[];
   openingHours: OpeningHour[];
@@ -60,6 +70,7 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
   // Refs for smooth scrolling
   const servicesRef = useRef<HTMLDivElement>(null);
   const teamRef = useRef<HTMLDivElement>(null);
+  const infoRef = useRef<HTMLDivElement>(null);
 
   const toggleCategory = (categoryName: string) => {
     setExpandedCategories(prev => ({
@@ -79,6 +90,9 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
       case "Team":
         targetRef = teamRef;
         break;
+      case "Info":
+        targetRef = infoRef;
+        break;
     }
 
     if (targetRef?.current) {
@@ -93,10 +107,9 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle scroll events for scroll-to-top button
   useEffect(() => {
     const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 300);
+      setShowScrollTop(window.scrollY > 400);
     };
 
     window.addEventListener('scroll', handleScroll);
@@ -130,22 +143,32 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
   const hasTagline = Boolean(effectiveTagline);
   const hasAbout = Boolean(effectiveAbout);
 
+  // Apply theme and brand color
+  const theme = business.theme || 'light';
+  const brandColor = business.brandColor || '#000000';
+  
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
       {/* Sticky Top Navigation Bar */}
-      <div className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+      <div className={`sticky top-0 z-50 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b shadow-sm`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-12">
             <div className="flex space-x-6">
-              {["Services", "Team"].map((tab) => (
+              {["Services", "Team", "Info"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => scrollToSection(tab)}
-                  className={`px-2 py-1 text-xs font-medium transition-colors ${
+                  className={`px-2 py-1 text-xs font-medium transition-all duration-200 ${
                     activeTab === tab
-                      ? "text-black border-b-2 border-black"
-                      : "text-gray-600 hover:text-black"
+                      ? 'border-b-2'
+                      : theme === 'dark' ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-black'
                   }`}
+                  style={activeTab === tab ? { 
+                    color: brandColor, 
+                    borderColor: brandColor 
+                  } : {
+                    color: theme === 'dark' ? 'rgb(209 213 219)' : 'rgb(75 85 99)'
+                  }}
                 >
                   {tab}
                 </button>
@@ -155,17 +178,25 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
         </div>
       </div>
 
-             {/* Hero Section */}
-       <div className="relative bg-white py-12 border-b border-gray-200">
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center">
-              <h1 className={`${hasTagline ? 'text-4xl mb-3' : 'text-5xl mb-0'} font-bold text-gray-900`}>{business.name}</h1>
-              {hasTagline && (
-                <p className="text-lg text-gray-600">{effectiveTagline}</p>
-              )}
-            </div>
-         </div>
-       </div>
+      {/* Hero Section */}
+      <div className={`relative ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} py-12 border-b`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h1 
+              className={`${hasTagline ? 'text-4xl mb-3' : 'text-5xl mb-0'} font-bold`}
+              style={{ color: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? 'white' : 'rgb(17 24 39)') }}
+            >
+              {business.name}
+            </h1>
+            {hasTagline && (
+              <p className={`text-lg ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{effectiveTagline}</p>
+            )}
+            {business.industry && (
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} mt-2`}>{business.industry}</p>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -173,10 +204,10 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
           {/* Left Column - Main Content */}
           <div className="lg:col-span-2">
             {/* Combined Content Block */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border overflow-hidden`}>
               {/* Services Section */}
-              <div ref={servicesRef} className="p-6 border-b border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Services</h2>
+              <div ref={servicesRef} className={`p-6 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
+                <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-4`}>Services</h2>
                 
                 <div className="space-y-3">
                   {Object.entries(servicesByCategory)
@@ -187,17 +218,17 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
                           className="flex items-center justify-between cursor-pointer mb-2"
                           onClick={() => toggleCategory(categoryName)}
                         >
-                          <h3 className="text-sm font-medium text-gray-700">{categoryName}</h3>
+                          <h3 className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>{categoryName}</h3>
                           {expandedCategories[categoryName] === true ? (
-                            <ChevronUpIcon className="h-3 w-3 text-gray-500" />
+                            <ChevronUpIcon className={`h-3 w-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
                           ) : (
-                            <ChevronDownIcon className="h-3 w-3 text-gray-500" />
+                            <ChevronDownIcon className={`h-3 w-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
                           )}
                         </div>
                         {expandedCategories[categoryName] === true && (
                           <div className="space-y-2">
                             {services.map((service) => (
-                              <ServiceCard key={service.id} service={service} />
+                              <ServiceCard key={service.id} service={service} theme={theme} brandColor={brandColor} />
                             ))}
                           </div>
                         )}
@@ -207,52 +238,49 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
               </div>
 
               {/* Team Section */}
-              <div ref={teamRef} className="p-6 border-b border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Team</h2>
+              <div ref={teamRef} className={`p-6 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
+                <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-4`}>Team</h2>
                 
                 <div className="space-y-2">
                   {business.team.map((member) => (
-                    <TeamMemberCard key={member.id} member={member} />
+                    <TeamMemberCard key={member.id} member={member} theme={theme} brandColor={brandColor} />
                   ))}
                 </div>
               </div>
 
-              {/* Policies Section */}
-              <div className="p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Policies</h2>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
-                    <CalendarIcon className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm text-gray-700">Booking policy</span>
-                    <ArrowRightIcon className="h-3 w-3 ml-auto text-gray-400" />
-                  </div>
-                </div>
-              </div>
+              {/* Info Section */}
+              <div ref={infoRef} className={`p-6 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
 
-              {/* About Section */}
-              {hasAbout && (
-                <div className="p-6 pt-0">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-2">About</h2>
-                  <p className="text-sm text-gray-700 whitespace-pre-line">{effectiveAbout}</p>
-                </div>
-              )}
+
+                {/* About Section */}
+                {hasAbout && (
+                  <div className="mb-6">
+                    <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-2`}>About</h2>
+                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'} whitespace-pre-line`}>{effectiveAbout}</p>
+                  </div>
+                )}
+
+
+
+
+              </div>
             </div>
           </div>
 
           {/* Right Column - Booking Sidebar */}
           <div className="lg:col-span-1">
-            <BookingSidebar business={business} />
+            <BookingSidebar business={business} theme={theme} brandColor={brandColor} />
           </div>
         </div>
       </div>
 
       {/* Scroll to Top Button */}
       {showScrollTop && (
-                 <button
-           onClick={scrollToTop}
-           className="fixed bottom-6 right-6 p-3 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition-colors z-40"
-         >
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 p-3 rounded-full shadow-lg transition-colors z-40"
+          style={{ backgroundColor: brandColor, color: 'white' }}
+        >
           <ArrowUpIcon className="h-5 w-5" />
         </button>
       )}

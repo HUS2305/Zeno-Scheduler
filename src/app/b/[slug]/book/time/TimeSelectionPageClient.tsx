@@ -27,6 +27,8 @@ interface Business {
   name: string;
   profilePic: string | null;
   team: TeamMember[];
+  theme?: string | null;
+  brandColor?: string | null;
 }
 
 interface TimeSelectionPageClientProps {
@@ -197,178 +199,189 @@ export default function TimeSelectionPageClient({
     { time: '16:30', available: true },
   ];
 
+  // Apply theme and brand color
+  const theme = business.theme || 'light';
+  const brandColor = business.brandColor || '#000000';
+
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-             {/* Header */}
-       <div className="bg-white border-b border-gray-200 shadow-sm">
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-           <div className="flex items-center h-10">
-                           <button
-                onClick={() => router.back()}
-                className="flex items-center text-black hover:text-gray-700 mr-3"
-              >
-                <ArrowLeftIcon className="h-4 w-4 font-bold" />
-              </button>
-             <h1 className="text-base font-semibold text-gray-900">Select a time</h1>
-           </div>
-         </div>
-       </div>
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
+      {/* Header */}
+      <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b shadow-sm`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-10">
+            <button
+              onClick={() => router.back()}
+              className={`flex items-center ${theme === 'dark' ? 'text-white hover:text-gray-300' : 'text-black hover:text-gray-700'} mr-3`}
+            >
+              <ArrowLeftIcon className="h-4 w-4 font-bold" />
+            </button>
+            <h1 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Select a time</h1>
+          </div>
+        </div>
+      </div>
 
-       
+      {/* Main Content */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Left Column - Calendar and Time Slots */}
+          <div className="space-y-4">
+            {/* Calendar */}
+            <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-4`}>
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => setDisplayMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() - 1))}
+                  className={`p-1 hover:bg-gray-100 rounded ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                >
+                  <ChevronLeftIcon className={`h-3 w-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} />
+                </button>
+                <h2 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {formatMonthYear(displayMonth)}
+                </h2>
+                <button
+                  onClick={() => setDisplayMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() + 1))}
+                  className={`p-1 hover:bg-gray-100 rounded ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                >
+                  <ChevronRightIcon className={`h-3 w-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} />
+                </button>
+              </div>
 
-               {/* Main Content */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                     {/* Left Column - Calendar and Time Slots */}
-           <div className="space-y-4">
-             {/* Calendar */}
-             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                               <div className="flex items-center justify-between mb-3">
+              {/* Day names */}
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {dayNames.map((day) => (
+                  <div key={day} className={`text-center text-xs font-medium py-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar grid */}
+              <div className="grid grid-cols-7 gap-1">
+                {days.map((day, index) => (
                   <button
-                    onClick={() => setDisplayMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() - 1))}
-                    className="p-1 hover:bg-gray-100 rounded"
+                    key={index}
+                    onClick={() => handleDateSelect(day.date)}
+                    className={`
+                      p-1.5 text-xs rounded-lg transition-colors
+                      ${!day.isCurrentMonth 
+                        ? `${theme === 'dark' ? 'text-gray-500 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-100'} cursor-pointer` 
+                        : `${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-900 hover:bg-gray-100'} cursor-pointer`
+                      }
+                      ${selectedDateState.toDateString() === day.date.toDateString()
+                        ? 'text-white'
+                        : ''
+                      }
+                    `}
+                    style={selectedDateState.toDateString() === day.date.toDateString() ? {
+                      backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
+                    } : {}}
                   >
-                    <ChevronLeftIcon className="h-3 w-3" />
+                    {day.date.getDate()}
                   </button>
-                  <h2 className="text-base font-semibold text-gray-900">
-                    {formatMonthYear(displayMonth)}
-                  </h2>
-                  <button
-                    onClick={() => setDisplayMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() + 1))}
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <ChevronRightIcon className="h-3 w-3" />
-                  </button>
-                </div>
+                ))}
+              </div>
+            </div>
 
-                             {/* Day names */}
-               <div className="grid grid-cols-7 gap-1 mb-2">
-                 {dayNames.map((day) => (
-                   <div key={day} className="text-center text-xs font-medium text-gray-500 py-1">
-                     {day}
-                   </div>
-                 ))}
-               </div>
-
-                               {/* Calendar grid */}
-                <div className="grid grid-cols-7 gap-1">
-                  {days.map((day, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleDateSelect(day.date)}
-                      className={`
-                        p-1.5 text-xs rounded-lg transition-colors
-                        ${!day.isCurrentMonth 
-                          ? 'text-gray-500 hover:bg-gray-100 cursor-pointer' 
-                          : 'text-gray-900 hover:bg-gray-100 cursor-pointer'
-                        }
-                        ${selectedDateState.toDateString() === day.date.toDateString()
-                          ? 'bg-black text-white'
-                          : ''
-                        }
-                      `}
-                    >
-                      {day.date.getDate()}
-                    </button>
-                  ))}
-                </div>
-             </div>
-
-             {/* Time Slots */}
-             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-               <h3 className="text-base font-semibold text-gray-900 mb-3">
-                 {formatDate(selectedDateState)}
-               </h3>
-               
-               <div className="grid grid-cols-3 gap-2">
-                 {timeSlots.map((slot) => (
-                   <button
-                     key={slot.time}
-                     onClick={() => slot.available && handleTimeSelect(slot.time)}
-                     disabled={!slot.available}
-                     className={`
-                       p-2 text-xs rounded-lg transition-colors font-medium
-                       ${!slot.available
-                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                         : selectedTimeState === slot.time
-                           ? 'bg-black text-white cursor-pointer'
-                           : 'bg-gray-50 hover:bg-gray-100 cursor-pointer text-gray-900'
-                       }
-                     `}
-                   >
-                     {slot.time}
-                   </button>
-                 ))}
-               </div>
-             </div>
-           </div>
-
-           {/* Right Column - Summary */}
-           <div className="space-y-4">
-             {/* Business Info */}
-             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-               <div className="text-center">
-                 <div className="w-12 h-12 mx-auto mb-2 bg-gray-200 rounded-full flex items-center justify-center">
-                   {business.profilePic ? (
-                     <img 
-                       src={business.profilePic} 
-                       alt={business.name}
-                       className="w-full h-full rounded-full object-cover"
-                     />
-                   ) : (
-                     <span className="text-lg font-bold text-gray-600">
-                       {business.name.charAt(0).toUpperCase()}
-                     </span>
-                   )}
-                 </div>
-                 <h3 className="text-base font-semibold text-gray-900 mb-1">{business.name}</h3>
-               </div>
-             </div>
-
-             {/* Summary */}
-             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-               <h3 className="text-base font-semibold text-gray-900 mb-3">Summary</h3>
+            {/* Time Slots */}
+            <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-4`}>
+              <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3`}>
+                {formatDate(selectedDateState)}
+              </h3>
               
+              <div className="grid grid-cols-3 gap-2">
+                {timeSlots.map((slot) => (
+                  <button
+                    key={slot.time}
+                    onClick={() => slot.available && handleTimeSelect(slot.time)}
+                    disabled={!slot.available}
+                    className={`
+                      p-2 text-xs rounded-lg transition-colors font-medium
+                      ${!slot.available
+                        ? `${theme === 'dark' ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'} cursor-not-allowed`
+                        : selectedTimeState === slot.time
+                          ? 'text-white cursor-pointer'
+                          : `${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-50 hover:bg-gray-100 text-gray-900'} cursor-pointer`
+                      }
+                    `}
+                    style={selectedTimeState === slot.time ? {
+                      backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
+                    } : {}}
+                  >
+                    {slot.time}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Summary */}
+          <div className="space-y-4">
+            {/* Business Info */}
+            <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-4`}>
+              <div className="text-center">
+                <div className={`w-12 h-12 mx-auto mb-2 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} rounded-full flex items-center justify-center`}>
+                  {business.profilePic ? (
+                    <img 
+                      src={business.profilePic} 
+                      alt={business.name}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className={`text-lg font-bold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {business.name.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-1`}>{business.name}</h3>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-4`}>
+              <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3`}>Summary</h3>
+             
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Service</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedService.name}</span>
+                  <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Service</span>
+                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{selectedService.name}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Duration</span>
-                  <span className="text-sm font-medium text-gray-900">{formatDuration(selectedService.duration)}</span>
+                  <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Duration</span>
+                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatDuration(selectedService.duration)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Provider</span>
-                  <span className="text-sm font-medium text-gray-900">
+                  <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Provider</span>
+                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                     {selectedTeamMember ? selectedTeamMember.name : 'Not selected'}
                   </span>
                 </div>
                  <div className="flex justify-between items-center">
-                   <span className="text-sm text-gray-600">Date & Time</span>
-                   <span className="text-sm font-medium text-gray-900">
+                   <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Date & Time</span>
+                   <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                      {selectedTimeState ? `${formatDate(selectedDateState)} at ${formatTime(selectedTimeState)}` : 'Not selected'}
                    </span>
                  </div>
                  <div className="flex justify-between items-center">
-                   <span className="text-sm text-gray-600">Price</span>
-                   <span className="text-sm font-medium text-gray-900">{formatPrice(selectedService.price)}</span>
+                   <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Price</span>
+                   <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatPrice(selectedService.price)}</span>
                  </div>
               </div>
 
-                             <button
-                 onClick={handleContinue}
-                 disabled={!selectedTimeState}
-                 className={`
-                   w-full mt-4 py-2 px-3 rounded-lg font-medium transition-colors text-sm
-                   ${selectedTimeState
-                     ? 'bg-black text-white hover:bg-gray-800'
-                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                   }
-                 `}
-               >
-                 Continue
-               </button>
+              <button
+                onClick={handleContinue}
+                disabled={!selectedTimeState}
+                className={`
+                  w-full mt-4 py-2 px-3 rounded-lg font-medium transition-colors text-sm
+                  ${selectedTimeState
+                    ? 'text-white hover:opacity-90'
+                    : `${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-400'} cursor-not-allowed`
+                  }
+                `}
+                style={selectedTimeState ? {
+                  backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
+                } : {}}
+              >
+                Continue
+              </button>
             </div>
           </div>
         </div>

@@ -46,6 +46,35 @@ export default async function PublicPage() {
     notFound();
   }
 
+  // Enrich with raw Mongo read to include fields not present in older Prisma client
+  let enrichedBusiness = business as any;
+  try {
+    const raw = await (prisma as any).$runCommandRaw({
+      find: 'Business',
+      filter: { _id: { $oid: business.id } },
+      limit: 1,
+    });
+    const first = raw?.cursor?.firstBatch?.[0];
+    if (first) {
+      enrichedBusiness = {
+        ...business,
+        tagline: first.tagline ?? null,
+        about: first.about ?? null,
+        contactEmail: first.contactEmail ?? null,
+        contactPhone: first.contactPhone ?? null,
+        country: first.country ?? null,
+        address: first.address ?? null,
+        city: first.city ?? null,
+        state: first.state ?? null,
+        zipCode: first.zipCode ?? null,
+        theme: first.theme ?? null,
+        brandColor: first.brandColor ?? null,
+      };
+    }
+  } catch (e) {
+    console.warn('Raw business read failed on main public page:', e);
+  }
+
   // Group services by category
   const servicesByCategory = business.categories.reduce((acc, category) => {
     acc[category.name] = category.serviceLinks.map(link => link.service);
@@ -62,7 +91,7 @@ export default async function PublicPage() {
 
   return (
     <PublicBookingPage 
-      business={business}
+      business={enrichedBusiness}
       servicesByCategory={servicesByCategory}
     />
   );

@@ -48,6 +48,13 @@ export default async function PublicPage({ params }: PublicPageProps) {
   // Enrich with raw Mongo read to include fields not present in older Prisma client
   let rawTagline: string | null = null;
   let rawAbout: string | null = null;
+  let rawContactEmail: string | null = null;
+  let rawContactPhone: string | null = null;
+  let rawCountry: string | null = null;
+  let rawAddress: string | null = null;
+  let rawCity: string | null = null;
+  let rawState: string | null = null;
+  let rawZipCode: string | null = null;
   try {
     const raw = await (prisma as any).$runCommandRaw({
       find: 'Business',
@@ -58,6 +65,13 @@ export default async function PublicPage({ params }: PublicPageProps) {
     if (first) {
       rawTagline = first.tagline ?? null;
       rawAbout = first.about ?? null;
+      rawContactEmail = first.contactEmail ?? null;
+      rawContactPhone = first.contactPhone ?? null;
+      rawCountry = first.country ?? null;
+      rawAddress = first.address ?? null;
+      rawCity = first.city ?? null;
+      rawState = first.state ?? null;
+      rawZipCode = first.zipCode ?? null;
     }
   } catch (e) {
     console.warn('Raw business read failed on public page:', e);
@@ -93,7 +107,18 @@ export default async function PublicPage({ params }: PublicPageProps) {
 
   return (
     <PublicBookingPage 
-      business={{ ...business, tagline, about } as any}
+      business={{ 
+        ...business, 
+        tagline, 
+        about,
+        contactEmail: rawContactEmail,
+        contactPhone: rawContactPhone,
+        country: rawCountry,
+        address: rawAddress,
+        city: rawCity,
+        state: rawState,
+        zipCode: rawZipCode,
+      } as any}
       servicesByCategory={servicesByCategory}
     />
   );

@@ -125,5 +125,5 @@ export default async function BookingPage({ params }: { params: Promise<{ slug: 
   const tagline = cookieStore.get('brand_tagline')?.value ?? rawTagline ?? (business as any)?.tagline ?? null;
   const about = cookieStore.get('brand_about')?.value ?? rawAbout ?? (business as any)?.about ?? null;
 
-  return <BookingPageClient business={{ ...business, tagline, about }} servicesByCategory={servicesByCategory} />;
+  return <BookingPageClient business={{ ...business, tagline, about }} servicesByCategory={servicesByCategory} slug={slug} />;
 } 

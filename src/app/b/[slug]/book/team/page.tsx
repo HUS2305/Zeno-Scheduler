@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 import { notFound } from "next/navigation";
 import TeamSelectionPageClient from "./TeamSelectionPageClient";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 export default async function TeamSelectionPage({ 
   params, 
@@ -19,10 +17,26 @@ export default async function TeamSelectionPage({
   }
 
   const business = await prisma.business.findFirst({
-    where: { id: slug },
+    where: { id: slug }, // The [slug] parameter is actually the business ID
     include: {
       team: {
         orderBy: { name: "asc" },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      profilePic: true,
+      theme: true,
+      brandColor: true,
+      team: {
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          profilePic: true,
+        },
       },
     },
   });
@@ -40,5 +54,5 @@ export default async function TeamSelectionPage({
     notFound();
   }
 
-  return <TeamSelectionPageClient business={business} serviceId={serviceId} selectedService={selectedService} />;
+  return <TeamSelectionPageClient business={business} serviceId={serviceId} selectedService={selectedService} slug={slug} />;
 }
