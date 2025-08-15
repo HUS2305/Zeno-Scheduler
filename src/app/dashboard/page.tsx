@@ -20,7 +20,6 @@ export default async function DashboardPage() {
     where: { ownerId: session.user.id },
     include: {
       services: true,
-      team: true,
     },
   });
 

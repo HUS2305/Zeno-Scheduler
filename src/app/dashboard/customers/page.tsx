@@ -104,6 +104,7 @@ export default function CustomersPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [error, setError] = useState("");
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState<string | null>(null);
+  const [detailViewDropdownOpen, setDetailViewDropdownOpen] = useState(false);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState("");
@@ -318,6 +319,7 @@ export default function CustomersPage() {
     setShowUnsavedChangesModal(false);
     setShowAddModal(false);
     setIsEditing(false);
+    setDetailViewDropdownOpen(false);
     setError(""); // Clear error when discarding
     setNewCustomer({ name: "", email: "", phone: "", company: "", country: "", address: "", city: "", state: "", zipCode: "" });
   };
@@ -377,6 +379,7 @@ export default function CustomersPage() {
       if (response.ok) {
         setShowDeleteModal(false);
         setCustomerDropdownOpen(null);
+        setDetailViewDropdownOpen(false);
         setSelectedCustomer(null);
         fetchCustomers(); // Refresh the list
       } else {
@@ -549,25 +552,77 @@ export default function CustomersPage() {
                filteredCustomers.map((customer) => (
                  <div
                    key={customer.id}
-                   onClick={() => setSelectedCustomer(customer)}
-                   className={`flex items-center space-x-2.5 p-2 rounded-lg cursor-pointer transition-colors ${
+                   className={`flex items-center space-x-2.5 p-2 rounded-lg transition-colors border ${
                      selectedCustomer?.id === customer.id
-                       ? 'bg-gray-100'
-                       : 'hover:bg-gray-50'
+                       ? 'bg-gray-100 border-black'
+                       : 'border-transparent hover:bg-gray-50 hover:border-black'
                    }`}
                  >
-                   <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                     <span className="text-xs font-medium text-gray-700">
-                       {(customer.name || customer.email).charAt(0).toUpperCase()}
-                     </span>
-                   </div>
-                   <div className="flex-1 min-w-0">
-                     <p className="text-xs font-medium text-gray-900 truncate">
-                       {customer.name || "No name"}
-                     </p>
-                     <p className="text-xs text-gray-500 truncate">{customer.email}</p>
+                   <div 
+                     className="flex-1 flex items-center space-x-2.5 cursor-pointer"
+                     onClick={() => setSelectedCustomer(customer)}
+                   >
+                     <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                       <span className="text-xs font-medium text-gray-700">
+                         {(customer.name || customer.email).charAt(0).toUpperCase()}
+                       </span>
+                     </div>
+                     <div className="flex-1 min-w-0">
+                       <p className="text-xs font-medium text-gray-900 truncate">
+                         {customer.name || "No name"}
+                       </p>
+                       <p className="text-xs text-gray-500 truncate">{customer.email}</p>
+                     </div>
                    </div>
                    
+                   {/* Burger Menu for each customer row */}
+                   <div className="relative">
+                     <button
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         setCustomerDropdownOpen(customerDropdownOpen === customer.id ? null : customer.id);
+                       }}
+                       className="p-1 hover:bg-gray-200 rounded transition-colors"
+                     >
+                       <svg className="h-3.5 w-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                       </svg>
+                     </button>
+                     
+                     {/* Dropdown Menu */}
+                     {customerDropdownOpen === customer.id && (
+                       <div className="absolute right-0 top-8 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                         <button
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setSelectedCustomer(customer);
+                             handleEditClick();
+                             setCustomerDropdownOpen(null);
+                           }}
+                           className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
+                         >
+                           <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                           </svg>
+                           Edit
+                         </button>
+                         <button
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setSelectedCustomer(customer);
+                             setShowDeleteModal(true);
+                             setCustomerDropdownOpen(null);
+                           }}
+                           className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
+                         >
+                           <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                           </svg>
+                           Delete
+                         </button>
+                       </div>
+                     )}
+                   </div>
                  </div>
                ))
              )}
@@ -597,19 +652,22 @@ export default function CustomersPage() {
                                    <div className="flex items-center space-x-2">
                                                      <div className="relative">
                 <button
-                  onClick={() => setCustomerDropdownOpen(customerDropdownOpen === selectedCustomer.id ? null : selectedCustomer.id)}
+                  onClick={() => setDetailViewDropdownOpen(!detailViewDropdownOpen)}
                   className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
                 >
-                  <svg className="h-3.5 w-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-3.5 w-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                   </svg>
                 </button>
                 
                 {/* Dropdown Menu */}
-                {customerDropdownOpen === selectedCustomer.id && (
+                {detailViewDropdownOpen && (
                   <div className="absolute right-0 top-8 z-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
                     <button
-                      onClick={handleEditClick}
+                      onClick={() => {
+                        handleEditClick();
+                        setDetailViewDropdownOpen(false);
+                      }}
                       className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
                     >
                       <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -620,7 +678,7 @@ export default function CustomersPage() {
                     <button
                       onClick={() => {
                         setShowDeleteModal(true);
-                        setCustomerDropdownOpen(null);
+                        setDetailViewDropdownOpen(false);
                       }}
                       className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center"
                     >
@@ -855,6 +913,7 @@ export default function CustomersPage() {
                   } else {
                     setShowAddModal(false);
                     setIsEditing(false);
+                    setDetailViewDropdownOpen(false);
                     setError(""); // Clear error when closing
                     setNewCustomer({ name: "", email: "", phone: "", company: "", country: "", address: "", city: "", state: "", zipCode: "" });
                   }
@@ -1301,6 +1360,7 @@ export default function CustomersPage() {
                        } else {
                          setShowAddModal(false);
                          setIsEditing(false);
+                         setDetailViewDropdownOpen(false);
                          setNewCustomer({ name: "", email: "", phone: "", company: "", country: "", address: "", city: "", state: "", zipCode: "" });
                        }
                      }}
@@ -1384,7 +1444,10 @@ export default function CustomersPage() {
                     </p>
                     <div className="flex justify-end space-x-3">
                       <button
-                        onClick={() => setShowDeleteModal(false)}
+                        onClick={() => {
+                          setShowDeleteModal(false);
+                          setDetailViewDropdownOpen(false);
+                        }}
                         className="px-3 py-1.5 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium"
                       >
                         Cancel

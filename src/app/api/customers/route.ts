@@ -23,8 +23,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Business not found" }, { status: 404 });
     }
 
-    // Get all customers (users) - not just those with bookings
+    // Get all customers (users) - excluding business owners
     const customers = await prisma.user.findMany({
+      where: {
+        // Exclude the current business owner
+        id: {
+          not: session.user.id
+        }
+      },
       include: {
         bookings: {
           where: {

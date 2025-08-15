@@ -95,7 +95,7 @@ export async function DELETE(
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     });
 
     if (!existingUser) {
@@ -105,12 +105,20 @@ export async function DELETE(
       );
     }
 
-    // Delete the user (customer)
-    await prisma.user.delete({
-      where: { id: id }
+    // Use a transaction to ensure all operations succeed or fail together
+    await prisma.$transaction(async (tx) => {
+      // First, delete all appointments (bookings) for this customer
+      await tx.booking.deleteMany({
+        where: { userId: id }
+      });
+
+      // Then delete the user (customer)
+      await tx.user.delete({
+        where: { id: id }
+      });
     });
 
-    return NextResponse.json({ message: "Customer deleted successfully" });
+    return NextResponse.json({ message: "Customer and all related appointments deleted successfully" });
   } catch (error) {
     console.error("Error deleting customer:", error);
     return NextResponse.json(

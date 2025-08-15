@@ -23,7 +23,8 @@
     "next-auth": "^4.24.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-phone-number-input": "^3.4.12"
+    "react-phone-number-input": "^3.4.12",
+    "resend": "^6.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

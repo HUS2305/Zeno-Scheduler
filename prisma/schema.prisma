@@ -7,6 +7,62 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Enum for team member roles
+enum TeamMemberRole {
+  STANDARD
+  ENHANCED
+  ADMIN
+  OWNER
+}
+
+// Enum for team member status
+enum TeamMemberStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  INVITED
+}
+
+// Enum for permission actions
+enum PermissionAction {
+  // Calendar & Appointments
+  VIEW_OWN_CALENDAR
+  MANAGE_OWN_APPOINTMENTS
+  VIEW_TEAM_CALENDARS
+  MANAGE_TEAM_APPOINTMENTS
+  VIEW_ALL_CALENDARS
+  MANAGE_ALL_APPOINTMENTS
+  
+  // Customer Management
+  VIEW_OWN_CUSTOMERS
+  MANAGE_OWN_CUSTOMERS
+  VIEW_ALL_CUSTOMERS
+  MANAGE_ALL_CUSTOMERS
+  
+  // Team Management
+  VIEW_TEAM_MEMBERS
+  INVITE_TEAM_MEMBERS
+  MANAGE_TEAM_MEMBERS
+  REMOVE_TEAM_MEMBERS
+  
+  // Business Settings
+  VIEW_BUSINESS_SETTINGS
+  MANAGE_BUSINESS_SETTINGS
+  MANAGE_SERVICES
+  MANAGE_CATEGORIES
+  MANAGE_OPENING_HOURS
+  
+  // Financial & Reports
+  VIEW_REPORTS
+  VIEW_FINANCIAL_DATA
+  EXPORT_DATA
+  
+  // System Administration
+  MANAGE_USER_ACCOUNTS
+  VIEW_AUDIT_LOGS
+  SYSTEM_CONFIGURATION
+}
+
 model User {
   id              String     @id @default(auto()) @map("_id") @db.ObjectId
   email           String?
@@ -22,6 +78,11 @@ model User {
   bookings        Booking[]
   business        Business?  @relation("UserBusiness") // no fields/references here
   createdAt       DateTime   @default(now())
+  
+  // New team member relationship
+  teamMemberships TeamMember[]
+  sentInvitations TeamInvitation[] @relation("InvitationSender")
+  auditActions   AuditLog[] @relation("AuditPerformer")
 }
 
 model Business {
@@ -51,13 +112,117 @@ model Business {
   owner        User       @relation("UserBusiness", fields: [ownerId], references: [id])
   services     Service[]
   categories   Category[]
-  team         TeamMember[]
+  teamMembers  TeamMember[]
+  teamInvitations TeamInvitation[]
+  auditLogs   AuditLog[]
   reviews      Review[]
   openingHours OpeningHour[]
   createdAt    DateTime   @default(now())
 }
 
+// Enhanced TeamMember model with role-based access control
+model TeamMember {
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String           @unique // Email must be unique for invitations
+  phone         String?
+  profilePic    String?
+  bio           String?
+  
+  // Role and status
+  role          TeamMemberRole   @default(STANDARD)
+  status        TeamMemberStatus @default(INVITED)
+  
+  // Business relationship
+  businessId    String           @db.ObjectId
+  business      Business         @relation(fields: [businessId], references: [id])
+  
+  // User account relationship (if team member has an account)
+  userId        String?          @unique @db.ObjectId
+  user          User?            @relation(fields: [userId], references: [id])
+  
+  // Permissions (many-to-many)
+  permissions   TeamMemberPermission[]
+  
+  // Relationships
+  bookings      Booking[]
+  serviceLinks  ServiceTeamMember[]
+  
+  // Timestamps
+  invitedAt     DateTime         @default(now())
+  joinedAt      DateTime?
+  lastActiveAt  DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  
+  // Invitation tracking
+  invitationToken String?        @unique
+  invitationExpiresAt DateTime?
+  
+  @@unique([businessId, email])
+}
 
+// Junction table for team member permissions
+model TeamMemberPermission {
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  teamMemberId  String           @db.ObjectId
+  action        PermissionAction
+  
+  teamMember    TeamMember       @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  
+  @@unique([teamMemberId, action])
+}
+
+// Team member invitations
+model TeamInvitation {
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  email         String
+  name          String
+  role          TeamMemberRole
+  businessId    String           @db.ObjectId
+  business      Business         @relation(fields: [businessId], references: [id])
+  
+  // Invitation details
+  token         String           @unique
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  acceptedBy    String?          @db.ObjectId // Team member who accepted
+  
+  // Metadata
+  invitedBy     String           @db.ObjectId // User who sent invitation
+  invitedByUser User             @relation("InvitationSender", fields: [invitedBy], references: [id])
+  message       String?          // Optional message from inviter
+  
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+// Audit logging for security and compliance
+model AuditLog {
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  businessId    String           @db.ObjectId
+  business      Business         @relation(fields: [businessId], references: [id])
+  
+  // Action details
+  action        String           // What was done
+  resourceType  String           // Type of resource affected (User, Booking, etc.)
+  resourceId    String?          // ID of affected resource
+  oldValues     Json?            // Previous values
+  newValues     Json?            // New values
+  
+  // User context
+  performedBy   String           @db.ObjectId
+  performedByUser User           @relation("AuditPerformer", fields: [performedBy], references: [id])
+  
+  // Metadata
+  ipAddress     String?
+  userAgent     String?
+  timestamp     DateTime         @default(now())
+  
+  // Additional context
+  description   String?
+  metadata      Json?
+}
 
 model Service {
   id            String              @id @default(auto()) @map("_id") @db.ObjectId
@@ -71,16 +236,6 @@ model Service {
   bookings      Booking[]
   teamLinks     ServiceTeamMember[] // <-- explicit relation
   categoryLinks ServiceCategory[]   // <-- new relation for multiple categories
-}
-
-model TeamMember {
-  id            String              @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  email         String?
-  businessId    String              @db.ObjectId
-  business      Business            @relation(fields: [businessId], references: [id])
-  bookings      Booking[]
-  serviceLinks  ServiceTeamMember[] // <-- explicit relation
 }
 
 model ServiceTeamMember {
