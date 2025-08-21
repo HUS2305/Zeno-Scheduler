@@ -15,6 +15,7 @@ interface Business {
   id: string;
   name: string;
   profilePic: string | null;
+  slug?: string | null;
   tagline?: string | null;
   about?: string | null;
   industry?: string | null;
@@ -25,6 +26,7 @@ interface Business {
   city?: string | null;
   state?: string | null;
   zipCode?: string | null;
+  brandColor?: string | null;
   openingHours: OpeningHour[];
 }
 
@@ -61,9 +63,9 @@ export default function BookingSidebar({ business, theme, brandColor }: BookingS
 
       {/* Book Button */}
       <button 
-        onClick={() => window.location.href = `/b/${business.id}/book`}
+        onClick={() => window.location.href = `/b/${business.slug || business.id}/book`}
         className="w-full font-semibold py-2 px-4 rounded-lg transition-colors mb-4 text-white hover:opacity-90"
-        style={{ backgroundColor: brandColor }}
+        style={{ backgroundColor: business.brandColor || '#000000' }}
       >
         Book
       </button>
@@ -82,9 +84,11 @@ export default function BookingSidebar({ business, theme, brandColor }: BookingS
           )}
         </div>
         {expandedSections.businessHours && (
-          <BusinessHours openingHours={business.openingHours} theme={theme} brandColor={business.brandColor} />
+          <BusinessHours openingHours={business.openingHours} theme={theme} brandColor={business.brandColor || undefined} />
         )}
       </div>
+
+
 
       {/* Contact Us Section */}
       {(business.contactEmail || business.contactPhone) && (

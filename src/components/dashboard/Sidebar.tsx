@@ -4,16 +4,68 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
+import { TeamMemberRole, PermissionAction } from "@prisma/client";
+
+// Type for team member context
+interface TeamMemberContext {
+  id: string;
+  role: TeamMemberRole;
+  businessId: string;
+  status: string;
+  permissions: PermissionAction[];
+  business: {
+    id: string;
+    name: string;
+    slug?: string | null;
+  };
+}
+
+// Type for business
+interface Business {
+  id: string;
+  name: string;
+  slug?: string | null;
+}
+
+interface SidebarProps {
+  teamMember: TeamMemberContext | null;
+  business: Business;
+}
 
 const navigation = [
-  { name: "Overview", href: "/dashboard", icon: "📊" },
-  { name: "Services", href: "/dashboard/services", icon: "📋" },
-  { name: "Customers", href: "/dashboard/customers", icon: "😊" },
-  { name: "Team", href: "/dashboard/team", icon: "👥" },
-  { name: "Settings", href: "/dashboard/settings", icon: "⚙️" },
+  { 
+    name: "Overview", 
+    href: "/dashboard", 
+    icon: "📊",
+    permission: null // Always visible
+  },
+  { 
+    name: "Services", 
+    href: "/dashboard/services", 
+    icon: "📋",
+    permission: PermissionAction.MANAGE_SERVICES
+  },
+  { 
+    name: "Customers", 
+    href: "/dashboard/customers", 
+    icon: "😊",
+    permission: PermissionAction.VIEW_OWN_CUSTOMERS
+  },
+  { 
+    name: "Team", 
+    href: "/dashboard/team", 
+    icon: "👥",
+    permission: PermissionAction.VIEW_TEAM_MEMBERS
+  },
+  { 
+    name: "Settings", 
+    href: "/dashboard/settings", 
+    icon: "⚙️",
+    permission: PermissionAction.VIEW_BUSINESS_SETTINGS
+  },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ teamMember, business }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [displayName, setDisplayName] = useState(session?.user?.name || session?.user?.email || "User");
@@ -51,6 +103,31 @@ export default function Sidebar() {
     }
   };
 
+  // Check if user has permission for a navigation item
+  const hasPermission = (permission: PermissionAction | null): boolean => {
+    if (!permission) return true; // No permission required
+    if (!teamMember) return false;
+    
+    // Owner has all permissions
+    if (teamMember.role === TeamMemberRole.OWNER) return true;
+    
+    return teamMember.permissions.includes(permission);
+  };
+
+  // Filter navigation based on permissions
+  const filteredNavigation = navigation.filter(item => hasPermission(item.permission));
+
+  // Get role display name
+  const getRoleDisplayName = (role: TeamMemberRole): string => {
+    const roleNames = {
+      [TeamMemberRole.STANDARD]: 'Standard',
+      [TeamMemberRole.ENHANCED]: 'Enhanced',
+      [TeamMemberRole.ADMIN]: 'Admin',
+      [TeamMemberRole.OWNER]: 'Owner',
+    };
+    return roleNames[role] || role;
+  };
+
   return (
     <div className="w-56 bg-white border-r border-gray-200 flex flex-col">
       {/* Header */}
@@ -61,14 +138,14 @@ export default function Sidebar() {
           </div>
           <div>
             <h1 className="text-base font-semibold text-gray-900">Zeno Scheduler</h1>
-            <p className="text-xs text-gray-500">Appointment Booking</p>
+            <p className="text-xs text-gray-500">{business.name}</p>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navigation.map((item) => {
+        {filteredNavigation.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
@@ -90,12 +167,14 @@ export default function Sidebar() {
       {/* Bottom Section */}
       <div className="p-3 border-t border-gray-200 space-y-3">
         {/* Share Booking Page */}
-        <div className="bg-blue-50 rounded-lg p-2">
-          <div className="flex items-center space-x-2 text-xs text-blue-700">
-            <span>📤</span>
-            <span>Share your Booking Page</span>
+        {business.slug && (
+          <div className="bg-blue-50 rounded-lg p-2">
+            <div className="flex items-center space-x-2 text-xs text-blue-700">
+              <span>📤</span>
+              <span>Share your Booking Page</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Pro Upgrade */}
         <div className="bg-green-50 border border-green-200 rounded-lg p-2">
@@ -125,7 +204,9 @@ export default function Sidebar() {
             <p className="text-xs font-medium text-gray-900 truncate">
               {displayName}
             </p>
-            <p className="text-xs text-gray-500">Business Owner</p>
+            <p className="text-xs text-gray-500">
+              {teamMember ? getRoleDisplayName(teamMember.role) : 'Business Owner'}
+            </p>
           </div>
           <button
             onClick={handleSignOut}

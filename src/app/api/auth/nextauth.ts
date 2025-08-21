@@ -5,8 +5,9 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "../../../lib/prisma";
 import type { JWT } from "next-auth/jwt";
 import type { Session, User } from "next-auth";
+import { TeamMemberRole, PermissionAction } from "@prisma/client";
 
-// Extend NextAuth types
+// Extend NextAuth types to include team member context
 declare module "next-auth" {
   interface Session {
     user: {
@@ -15,12 +16,26 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
     };
+    teamMember?: {
+      id: string;
+      role: TeamMemberRole;
+      businessId: string;
+      status: string;
+      permissions: PermissionAction[];
+    };
+    business?: {
+      id: string;
+      name: string;
+      slug?: string;
+    };
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
+    teamMemberId?: string;
+    businessId?: string;
   }
 }
 
@@ -82,12 +97,66 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        
+        // Get team member context and business info (with better error handling)
+        try {
+          const teamMember = await prisma.teamMember.findFirst({
+            where: {
+              userId: user.id,
+              status: 'ACTIVE',
+            },
+            include: {
+              business: true,
+              permissions: true,
+            },
+          });
+
+          if (teamMember) {
+            token.teamMemberId = teamMember.id;
+            token.businessId = teamMember.businessId;
+          }
+        } catch (error) {
+          console.error("Error getting team member context in JWT:", error);
+          // Don't fail authentication - just log the error
+        }
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
+        
+        // Add team member context to session (with better error handling)
+        if (token.teamMemberId && token.businessId) {
+          try {
+            const teamMember = await prisma.teamMember.findUnique({
+              where: { id: token.teamMemberId as string },
+              include: {
+                business: true,
+                permissions: true,
+              },
+            });
+
+            if (teamMember) {
+              session.teamMember = {
+                id: teamMember.id,
+                role: teamMember.role,
+                businessId: teamMember.businessId,
+                status: teamMember.status,
+                permissions: teamMember.permissions.map(p => p.action),
+              };
+
+              session.business = {
+                id: teamMember.business.id,
+                name: teamMember.business.name,
+                slug: teamMember.business.slug || undefined,
+              };
+            }
+          } catch (error) {
+            console.error("Error getting team member context in session:", error);
+            // Don't fail session - just log the error
+          }
+        }
       }
       return session;
     },

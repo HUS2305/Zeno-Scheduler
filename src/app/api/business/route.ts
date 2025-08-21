@@ -40,6 +40,26 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Set default slot size and double booking setting using raw MongoDB command
+    try {
+      await (prisma as any).$runCommandRaw({
+        update: 'Business',
+        updates: [
+          {
+            q: { _id: { $oid: business.id } },
+            u: { $set: { 
+              slotSize: { value: 30, unit: "minutes" },
+              allowDoubleBooking: true // Default to allowing double bookings
+            } },
+            upsert: false,
+            multi: false,
+          },
+        ],
+      });
+    } catch (e) {
+      console.warn('Failed to set default slot size and double booking setting:', e);
+    }
+
     // Create default opening hours (8:00-17:00 for all days)
     const defaultOpeningHours = [
       { dayOfWeek: 0, openTime: "08:00", closeTime: "17:00", businessId: business.id }, // Sunday
@@ -65,7 +85,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -100,6 +120,25 @@ export async function GET() {
         data: defaultOpeningHours,
       });
 
+      // Also ensure business has a default slot size
+      if (!(business as any).slotSize) {
+        try {
+          await (prisma as any).$runCommandRaw({
+            update: 'Business',
+            updates: [
+              {
+                q: { _id: { $oid: business.id } },
+                u: { $set: { slotSize: { value: 30, unit: "minutes" } } },
+                upsert: false,
+                multi: false,
+              },
+            ],
+          });
+        } catch (e) {
+          console.warn('Failed to set default slot size:', e);
+        }
+      }
+
       // Re-fetch business with the new opening hours
       const updatedBusiness = await prisma.business.findFirst({
         where: { ownerId: session.user.id },
@@ -130,6 +169,8 @@ export async function GET() {
           industry: first.industry ?? null,
           about: first.about ?? null,
           openingHours: business.openingHours,
+          slotSize: (business as any).slotSize ?? { value: 30, unit: "minutes" },
+          allowDoubleBooking: first.allowDoubleBooking ?? true, // Default to true if not set
           contactEmail: first.contactEmail ?? null,
           contactPhone: first.contactPhone ?? null,
           country: first.country ?? null,
@@ -145,7 +186,11 @@ export async function GET() {
       console.warn('Raw read failed, returning prisma business only:', e);
     }
 
-    return NextResponse.json(enriched);
+    const response = NextResponse.json(enriched);
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    return response;
   } catch (error) {
     console.error("Error fetching business:", error);
     return NextResponse.json(
@@ -173,6 +218,8 @@ export async function PUT(request: NextRequest) {
       contactEmail,
       contactPhone,
       openingHours,
+      slotSize,
+      allowDoubleBooking,
       country,
       address,
       city,
@@ -189,6 +236,8 @@ export async function PUT(request: NextRequest) {
       contactEmail?: string;
       contactPhone?: string;
       openingHours?: Array<{ dayOfWeek: number; openTime: string; closeTime: string }>;
+      slotSize?: { value: number; unit: string };
+      allowDoubleBooking?: boolean;
       country?: string;
       address?: string;
       city?: string;
@@ -266,7 +315,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Persist other fields via raw Mongo command to avoid client-version mismatches
-    const $set: Record<string, string | null> = {};
+    const $set: Record<string, any> = {};
     
     // Only update fields that are actually provided in the request
     // This prevents accidentally setting fields to null when they're not included
@@ -321,6 +370,12 @@ export async function PUT(request: NextRequest) {
     if (brandColor !== undefined) {
       const normBrandColor = normalizeOptional(brandColor);
       if (typeof normBrandColor === 'string' || normBrandColor === null) $set.brandColor = normBrandColor;
+    }
+    if (slotSize !== undefined) {
+      $set.slotSize = slotSize;
+    }
+    if (allowDoubleBooking !== undefined) {
+      $set.allowDoubleBooking = allowDoubleBooking;
     }
     try {
       if (Object.keys($set).length > 0) {

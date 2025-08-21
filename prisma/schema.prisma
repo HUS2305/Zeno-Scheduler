@@ -108,6 +108,10 @@ model Business {
   // Appearance settings
   theme        String?    @default("light")
   brandColor   String?    @default("#000000")
+  // Booking slot configuration
+  slotSize     Json?      // { value: number, unit: string }
+  // Double booking control for customers
+  allowDoubleBooking Boolean @default(true) // If false, customers cannot book overlapping time slots
   ownerId      String     @unique @db.ObjectId
   owner        User       @relation("UserBusiness", fields: [ownerId], references: [id])
   services     Service[]

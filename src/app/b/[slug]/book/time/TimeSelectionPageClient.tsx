@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
 
@@ -26,9 +26,19 @@ interface Business {
   id: string;
   name: string;
   profilePic: string | null;
-  team: TeamMember[];
+  teamMembers: TeamMember[];
   theme?: string | null;
   brandColor?: string | null;
+  slotSize?: {
+    value: number;
+    unit: string;
+  };
+  allowDoubleBooking?: boolean;
+  openingHours?: Array<{
+    dayOfWeek: number;
+    openTime: string;
+    closeTime: string;
+  }>;
 }
 
 interface TimeSelectionPageClientProps {
@@ -147,6 +157,11 @@ export default function TimeSelectionPageClient({
   };
 
   const handleDateSelect = (date: Date) => {
+    // Only allow selecting open days
+    if (!isDayOpen(date)) {
+      return;
+    }
+    
     setSelectedDate(date);
     setSelectedTime(''); // Reset time when date changes
     
@@ -179,29 +194,165 @@ export default function TimeSelectionPageClient({
   const days = getDaysInMonth(displayMonth);
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  // Mock time slots - this would come from the backend based on business hours
-  const timeSlots: TimeSlot[] = [
-    { time: '09:00', available: true },
-    { time: '09:30', available: true },
-    { time: '10:00', available: true }, // Changed from false to true to fix top right corner issue
-    { time: '10:30', available: true },
-    { time: '11:00', available: true },
-    { time: '11:30', available: true },
-    { time: '12:00', available: true }, // Changed from false to true to fix third row first slot issue
-    { time: '12:30', available: true },
-    { time: '13:00', available: true },
-    { time: '13:30', available: true },
-    { time: '14:00', available: true },
-    { time: '14:30', available: true },
-    { time: '15:00', available: true },
-    { time: '15:30', available: true },
-    { time: '16:00', available: true },
-    { time: '16:30', available: true },
-  ];
+  // Check if a specific day is open for business
+  const isDayOpen = (date: Date): boolean => {
+    const dayOfWeek = date.getDay();
+    return business.openingHours?.some(hour => hour.dayOfWeek === dayOfWeek) || false;
+  };
+
+  // Check if a time slot is available (no overlapping bookings)
+  const checkTimeSlotAvailability = async (time: string): Promise<boolean> => {
+    // If double booking is allowed, all slots are available
+    if (business.allowDoubleBooking) {
+      return true;
+    }
+
+    try {
+      // Format date for API call
+      const year = selectedDateState.getFullYear();
+      const month = String(selectedDateState.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDateState.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+
+      const response = await fetch('/api/bookings/check-availability', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          businessId: business.id,
+          serviceId: serviceId,
+          date: dateString,
+          time: time,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.available;
+      }
+    } catch (error) {
+      console.error('Error checking availability:', error);
+    }
+
+    // Default to available if check fails
+    return true;
+  };
+
+  // Generate time slots dynamically based on business configuration
+  const generateTimeSlots = (): TimeSlot[] => {
+    const slots: TimeSlot[] = [];
+    
+    // Get business slot size configuration with fallback to 30 minutes
+    const slotSize = business.slotSize?.value || 30;
+    const slotUnit = business.slotSize?.unit || 'minutes';
+    
+    // Convert slot size to minutes
+    const slotSizeInMinutes = slotUnit === 'hours' ? slotSize * 60 : slotSize;
+    
+    // Debug logging
+    console.log('=== TIME SLOT GENERATION DEBUG ===');
+    console.log('Business data:', business);
+    console.log('Business slot size:', business.slotSize);
+    console.log('Business allow double booking:', business.allowDoubleBooking);
+    console.log('Selected date:', selectedDateState);
+    console.log('Business opening hours:', business.openingHours);
+    
+    // Get business hours for the selected day
+    // Note: getDay() returns 0=Sunday, 1=Monday, etc.
+    // But our business hours use 0=Sunday, 1=Monday, etc. (same mapping)
+    const selectedDayOfWeek = selectedDateState.getDay();
+    console.log('Selected day of week:', selectedDayOfWeek);
+    
+    const dayOfWeek = selectedDateState.getDay();
+    console.log('Selected day of week:', selectedDayOfWeek);
+    
+    const dayHours = business.openingHours?.find(hour => hour.dayOfWeek === selectedDayOfWeek);
+    console.log('Found day hours:', dayHours);
+    
+    // If the selected day is closed, return empty slots
+    if (!dayHours) {
+      console.log('Selected day is closed, no time slots available');
+      return [];
+    }
+    
+    // Parse opening and closing times
+    const [openHour, openMinute] = dayHours.openTime.split(':').map(Number);
+    const [closeHour, closeMinute] = dayHours.closeTime.split(':').map(Number);
+    
+    const openTime = openHour * 60 + openMinute; // Convert to minutes
+    const closeTime = closeHour * 60 + closeMinute;
+    
+    console.log('Open time (minutes):', openTime, 'Close time (minutes):', closeTime);
+    
+    console.log('Slot size in minutes:', slotSizeInMinutes);
+    
+    // Check if selected date is today
+    const now = new Date();
+    const isToday = selectedDateState.toDateString() === now.toDateString();
+    const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    console.log('Is today:', isToday);
+    console.log('Current time in minutes:', currentTimeInMinutes);
+    
+    // Generate slots from open time to close time
+    for (let time = openTime; time < closeTime; time += slotSizeInMinutes) {
+      const hour = Math.floor(time / 60);
+      const minute = time % 60;
+      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      
+      // Check if this time slot has already passed (for today only)
+      const isPastTime = isToday && time <= currentTimeInMinutes;
+      
+      // For now, mark all slots as available
+      // Availability checking will be handled separately via useEffect
+      const isAvailable = !isPastTime;
+      
+      slots.push({
+        time: timeString,
+        available: isAvailable
+      });
+    }
+    
+    console.log('Generated slots:', slots);
+    return slots;
+  };
+
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
 
   // Apply theme and brand color
   const theme = business.theme || 'light';
   const brandColor = business.brandColor || '#000000';
+
+  // Effect to generate time slots and check availability when date changes
+  useEffect(() => {
+    const updateTimeSlots = async () => {
+      const baseSlots = generateTimeSlots();
+      
+      // If double booking is allowed, use base slots as is
+      if (business.allowDoubleBooking) {
+        setTimeSlots(baseSlots);
+        return;
+      }
+
+      // If double booking is not allowed, check availability for each slot
+      setIsCheckingAvailability(true);
+      const updatedSlots = await Promise.all(
+        baseSlots.map(async (slot) => {
+          if (!slot.available) return slot; // Keep past time slots as unavailable
+          
+          const isAvailable = await checkTimeSlotAvailability(slot.time);
+          return { ...slot, available: isAvailable };
+        })
+      );
+      
+      setTimeSlots(updatedSlots);
+      setIsCheckingAvailability(false);
+    };
+
+    updateTimeSlots();
+  }, [selectedDateState, business.allowDoubleBooking, business.id, serviceId]);
 
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
@@ -256,60 +407,98 @@ export default function TimeSelectionPageClient({
 
               {/* Calendar grid */}
               <div className="grid grid-cols-7 gap-1">
-                {days.map((day, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleDateSelect(day.date)}
-                    className={`
-                      p-1.5 text-xs rounded-lg transition-colors
-                      ${!day.isCurrentMonth 
-                        ? `${theme === 'dark' ? 'text-gray-500 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-100'} cursor-pointer` 
-                        : `${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-900 hover:bg-gray-100'} cursor-pointer`
-                      }
-                      ${selectedDateState.toDateString() === day.date.toDateString()
-                        ? 'text-white'
-                        : ''
-                      }
-                    `}
-                    style={selectedDateState.toDateString() === day.date.toDateString() ? {
-                      backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
-                    } : {}}
-                  >
-                    {day.date.getDate()}
-                  </button>
-                ))}
+                {days.map((day, index) => {
+                  const isOpen = isDayOpen(day.date);
+                  const isSelected = selectedDateState.toDateString() === day.date.toDateString();
+                  
+                  return (
+                                         <button
+                       key={index}
+                       onClick={() => isOpen && handleDateSelect(day.date)}
+                       disabled={!isOpen}
+                       className={`
+                         p-1.5 text-xs rounded-lg transition-colors relative
+                         ${!day.isCurrentMonth 
+                           ? `${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'} ${isOpen ? 'hover:bg-gray-100' : ''}`
+                           : isOpen 
+                             ? `${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-900 hover:bg-gray-100'} cursor-pointer`
+                             : `${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'} cursor-not-allowed`
+                         }
+                         ${isSelected && isOpen
+                           ? 'text-white'
+                           : ''
+                         }
+                       `}
+                       style={isSelected && isOpen ? {
+                         backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
+                       } : {}}
+                     >
+                       {day.date.getDate()}
+                                               {!isOpen && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-lg text-gray-400">—</span>
+                          </div>
+                        )}
+                     </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Time Slots */}
-            <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-4`}>
-              <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3`}>
-                {formatDate(selectedDateState)}
-              </h3>
-              
-              <div className="grid grid-cols-3 gap-2">
-                {timeSlots.map((slot) => (
-                  <button
-                    key={slot.time}
-                    onClick={() => slot.available && handleTimeSelect(slot.time)}
-                    disabled={!slot.available}
-                    className={`
-                      p-2 text-xs rounded-lg transition-colors font-medium
-                      ${!slot.available
-                        ? `${theme === 'dark' ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'} cursor-not-allowed`
-                        : selectedTimeState === slot.time
-                          ? 'text-white cursor-pointer'
-                          : `${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-50 hover:bg-gray-100 text-gray-900'} cursor-pointer`
-                      }
-                    `}
-                    style={selectedTimeState === slot.time ? {
-                      backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
-                    } : {}}
-                  >
-                    {slot.time}
-                  </button>
-                ))}
-              </div>
+                         {/* Time Slots */}
+             <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-4`}>
+               <h3 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3`}>
+                 {formatDate(selectedDateState)}
+               </h3>
+               
+               {isCheckingAvailability ? (
+                 <div className={`text-center py-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                   <p className="text-sm">Checking availability...</p>
+                 </div>
+               ) : timeSlots.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {timeSlots.map((slot) => (
+                      <button
+                        key={slot.time}
+                        onClick={() => slot.available && handleTimeSelect(slot.time)}
+                        disabled={!slot.available}
+                        className={`
+                          p-2 text-xs rounded-lg transition-colors font-medium relative
+                          ${!slot.available
+                            ? `${theme === 'dark' ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'} cursor-not-allowed`
+                            : selectedTimeState === slot.time
+                              ? 'text-white cursor-pointer'
+                              : `${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-50 hover:bg-gray-100 text-gray-900'} cursor-pointer`
+                          }
+                        `}
+                        style={selectedTimeState === slot.time ? {
+                          backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
+                        } : {}}
+                      >
+                        {slot.time}
+                        {!slot.available && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-sm text-gray-400">—</span>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+               ) : (
+                 <div className={`text-center py-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                   {isDayOpen(selectedDateState) ? (
+                     <>
+                       <p className="text-sm">No available time slots for this date.</p>
+                       <p className="text-xs mt-2">Please check business hours or try a different date.</p>
+                     </>
+                   ) : (
+                     <>
+                       <p className="text-sm">Business is closed on this day.</p>
+                       <p className="text-xs mt-2">Please select a different date when the business is open.</p>
+                     </>
+                   )}
+                 </div>
+               )}
             </div>
           </div>
 
@@ -354,34 +543,45 @@ export default function TimeSelectionPageClient({
                     {selectedTeamMember ? selectedTeamMember.name : 'Not selected'}
                   </span>
                 </div>
-                 <div className="flex justify-between items-center">
-                   <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Date & Time</span>
-                   <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                     {selectedTimeState ? `${formatDate(selectedDateState)} at ${formatTime(selectedTimeState)}` : 'Not selected'}
-                   </span>
-                 </div>
+                                   <div className="flex justify-between items-center">
+                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Date & Time</span>
+                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {!isDayOpen(selectedDateState) 
+                        ? 'Business closed on selected date'
+                        : selectedTimeState 
+                          ? (() => {
+                              const selectedSlot = timeSlots.find(slot => slot.time === selectedTimeState);
+                              if (selectedSlot && !selectedSlot.available) {
+                                return 'Selected time has passed';
+                              }
+                              return `${formatDate(selectedDateState)} at ${formatTime(selectedTimeState)}`;
+                            })()
+                          : 'Not selected'
+                      }
+                    </span>
+                  </div>
                  <div className="flex justify-between items-center">
                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Price</span>
                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatPrice(selectedService.price)}</span>
                  </div>
               </div>
 
-              <button
-                onClick={handleContinue}
-                disabled={!selectedTimeState}
-                className={`
-                  w-full mt-4 py-2 px-3 rounded-lg font-medium transition-colors text-sm
-                  ${selectedTimeState
-                    ? 'text-white hover:opacity-90'
-                    : `${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-400'} cursor-not-allowed`
-                  }
-                `}
-                style={selectedTimeState ? {
-                  backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
-                } : {}}
-              >
-                Continue
-              </button>
+                                             <button
+                  onClick={handleContinue}
+                  disabled={!selectedTimeState || !isDayOpen(selectedDateState) || !timeSlots.find(slot => slot.time === selectedTimeState)?.available}
+                  className={`
+                    w-full mt-4 py-2 px-3 rounded-lg font-medium transition-colors text-sm
+                    ${selectedTimeState && isDayOpen(selectedDateState) && timeSlots.find(slot => slot.time === selectedTimeState)?.available
+                      ? 'text-white hover:opacity-90'
+                      : `${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-400'} cursor-not-allowed`
+                    }
+                  `}
+                  style={selectedTimeState && isDayOpen(selectedDateState) && timeSlots.find(slot => slot.time === selectedTimeState)?.available ? {
+                    backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
+                  } : {}}
+                >
+                  Continue
+                </button>
             </div>
           </div>
         </div>

@@ -27,7 +27,11 @@ export async function POST(request: NextRequest) {
 
     // Validate that the business exists
     const business = await prisma.business.findUnique({
-      where: { id: businessId }
+      where: { id: businessId },
+      select: {
+        id: true,
+        allowDoubleBooking: true
+      }
     });
 
     if (!business) {
@@ -105,20 +109,38 @@ export async function POST(request: NextRequest) {
     const appointmentDate = new Date(date);
     appointmentDate.setHours(hours, minutes, 0, 0);
 
-    // Check for conflicts
-    const conflictingBooking = await prisma.booking.findFirst({
-      where: {
-        date: appointmentDate,
-        serviceId: serviceId,
-        teamMemberId: (teamMemberId && teamMemberId !== "undefined" && teamMemberId !== "null") ? teamMemberId : null
-      }
-    });
+    // Check for conflicts only if double booking is not allowed
+    if (!business.allowDoubleBooking) {
+      // Find all bookings for the same service on the same date
+      const conflictingBookings = await prisma.booking.findMany({
+        where: {
+          serviceId: serviceId,
+          date: {
+            gte: new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate(), 0, 0, 0),
+            lt: new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate() + 1, 0, 0, 0)
+          }
+        },
+        include: {
+          service: true
+        }
+      });
 
-    if (conflictingBooking) {
-      return NextResponse.json(
-        { error: "There is already a booking at this time" },
-        { status: 400 }
-      );
+      // Check for actual overlaps considering service duration
+      const hasConflict = conflictingBookings.some(booking => {
+        const bookingStart = new Date(booking.date);
+        const bookingEnd = new Date(bookingStart.getTime() + booking.service.duration * 60 * 1000);
+        
+        // Check if there's any overlap
+        return (appointmentDate < bookingEnd && 
+                new Date(appointmentDate.getTime() + service.duration * 60 * 1000) > bookingStart);
+      });
+
+      if (hasConflict) {
+        return NextResponse.json(
+          { error: "There is already a booking at this time" },
+          { status: 400 }
+        );
+      }
     }
 
     // Create the booking

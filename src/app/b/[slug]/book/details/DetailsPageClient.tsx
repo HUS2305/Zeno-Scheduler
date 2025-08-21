@@ -23,7 +23,7 @@ interface Business {
   id: string;
   name: string;
   profilePic: string | null;
-  team: TeamMember[];
+  teamMembers: TeamMember[];
   theme?: string | null;
   brandColor?: string | null;
 }
@@ -753,7 +753,7 @@ export default function DetailsPageClient({
              <button
                onClick={() => {
                  setShowConfirmationModal(false);
-                 router.push(`/b/${slug}`);
+                 router.push(`/public`);
                }}
                className={`absolute top-3 right-3 p-1 rounded-full transition-colors ${
                  business.theme === 'dark' 
@@ -808,7 +808,7 @@ export default function DetailsPageClient({
                  <button
                    onClick={() => {
                      setShowConfirmationModal(false);
-                     router.push(`/b/${slug}`);
+                     router.push(`/public`);
                    }}
                    className="px-4 py-2 text-white rounded-md hover:opacity-90 transition-colors text-sm font-medium"
                    style={{

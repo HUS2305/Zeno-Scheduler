@@ -12,6 +12,7 @@ export interface TeamMemberContext {
   businessId: string;
   userId?: string;
   status: string;
+  permissions: PermissionAction[];
 }
 
 // Interface for permission check result
@@ -32,16 +33,21 @@ export async function getTeamMemberContext(userId: string, businessId: string): 
         businessId: businessId,
         status: 'ACTIVE',
       },
-      select: {
-        id: true,
-        role: true,
-        businessId: true,
-        userId: true,
-        status: true,
+      include: {
+        permissions: true,
       },
     });
 
-    return teamMember;
+    if (!teamMember) return null;
+
+    return {
+      id: teamMember.id,
+      role: teamMember.role,
+      businessId: teamMember.businessId,
+      userId: teamMember.userId,
+      status: teamMember.status,
+      permissions: teamMember.permissions.map(p => p.action),
+    };
   } catch (error) {
     console.error('Error getting team member context:', error);
     return null;

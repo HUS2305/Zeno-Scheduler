@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
+import { useRouter } from "next/navigation";
 
 interface Service {
   id: string;
@@ -20,9 +21,18 @@ interface ServiceCardProps {
   service: Service;
   theme: string;
   brandColor: string;
+  businessSlug?: string;
+  businessId?: string;
+  teamMembers?: Array<{
+    id: string;
+    name: string;
+    email: string | null;
+  }>;
 }
 
-export default function ServiceCard({ service, theme, brandColor }: ServiceCardProps) {
+export default function ServiceCard({ service, theme, brandColor, businessSlug, businessId, teamMembers }: ServiceCardProps) {
+  const router = useRouter();
+
   const formatDuration = (minutes: number) => {
     if (minutes < 60) {
       return `${minutes} mins`;
@@ -42,28 +52,46 @@ export default function ServiceCard({ service, theme, brandColor }: ServiceCardP
     return `$${price.toFixed(2)}`;
   };
 
+  const handleDirectBooking = () => {
+    if (!businessId) return;
+    
+    // Navigate directly to time selection, bypassing service selection
+    if (teamMembers && teamMembers.length === 1) {
+      // Skip team selection if only one member
+      router.push(`/b/${businessId}/book/time?serviceId=${service.id}&teamMemberId=${teamMembers[0].id}`);
+    } else if (teamMembers && teamMembers.length > 1) {
+      // Go to team selection if multiple members
+      router.push(`/b/${businessId}/book/team?serviceId=${service.id}`);
+    } else {
+      // No team members - go directly to time selection
+      router.push(`/b/${businessId}/book/time?serviceId=${service.id}`);
+    }
+  };
+
   return (
-    <div className={`flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition-all duration-200 border ${
-      theme === 'dark' 
-        ? 'bg-gray-700 hover:bg-gray-600 border-gray-600' 
-        : 'bg-gray-50 hover:bg-gray-100 border-gray-200'
-    }`}
-    style={{
-      borderColor: theme === 'dark' ? undefined : (brandColor !== '#000000' ? brandColor : undefined),
-      '--tw-border-opacity': theme === 'dark' ? undefined : (brandColor !== '#000000' ? '0.3' : undefined),
-    } as React.CSSProperties}
-    onMouseEnter={(e) => {
-      if (brandColor !== '#000000' && theme !== 'dark') {
-        e.currentTarget.style.borderColor = brandColor;
-        e.currentTarget.style.borderOpacity = '0.6';
-      }
-    }}
-    onMouseLeave={(e) => {
-      if (brandColor !== '#000000' && theme !== 'dark') {
-        e.currentTarget.style.borderColor = brandColor;
-        e.currentTarget.style.borderOpacity = '0.3';
-      }
-    }}>
+    <div 
+      className={`flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition-all duration-200 border ${
+        theme === 'dark' 
+          ? 'bg-gray-700 hover:bg-gray-600 border-gray-600 hover:shadow-md' 
+          : 'bg-gray-50 hover:bg-gray-100 border-gray-200 hover:shadow-md'
+      }`}
+      style={{
+        borderColor: theme === 'dark' ? undefined : (brandColor !== '#000000' ? brandColor : undefined),
+        '--tw-border-opacity': theme === 'dark' ? undefined : (brandColor !== '#000000' ? '0.3' : undefined),
+      } as React.CSSProperties}
+      onMouseEnter={(e) => {
+        if (brandColor !== '#000000' && theme !== 'dark') {
+          e.currentTarget.style.borderColor = brandColor;
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (brandColor !== '#000000' && theme !== 'dark') {
+          e.currentTarget.style.borderColor = brandColor;
+        }
+      }}
+      onClick={handleDirectBooking}
+      title="Click to book this service directly"
+    >
       {/* Service Icon */}
       <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
         theme === 'dark' ? 'bg-gray-600' : 'bg-gray-100'
@@ -85,8 +113,11 @@ export default function ServiceCard({ service, theme, brandColor }: ServiceCardP
         </div>
       </div>
 
-      {/* Arrow */}
-      <ArrowRightIcon className={`h-4 w-4 transition-colors ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} />
+      {/* Arrow and Book Now Text */}
+      <div className="flex items-center space-x-1">
+        <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>Book Now</span>
+        <ArrowRightIcon className={`h-4 w-4 transition-colors ${theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`} />
+      </div>
     </div>
   );
 } 

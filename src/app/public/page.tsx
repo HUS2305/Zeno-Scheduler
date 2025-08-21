@@ -5,6 +5,7 @@ import PublicBookingPage from "@/components/public/PublicBookingPage";
 const prisma = new PrismaClient();
 
 export default async function PublicPage() {
+  // Get the first business record with all necessary relationships
   const business = await prisma.business.findFirst({
     include: {
       services: {
@@ -23,7 +24,7 @@ export default async function PublicPage() {
         },
         orderBy: { name: "asc" },
       },
-      team: {
+      teamMembers: {
         orderBy: { name: "asc" },
       },
       openingHours: {
@@ -76,17 +77,31 @@ export default async function PublicPage() {
   }
 
   // Group services by category
-  const servicesByCategory = business.categories.reduce((acc, category) => {
-    acc[category.name] = category.serviceLinks.map(link => link.service);
-    return acc;
-  }, {} as Record<string, typeof business.services>);
+  let servicesByCategory: Record<string, typeof business.services> = {};
+  
+  try {
+    if (business.categories && business.categories.length > 0) {
+      servicesByCategory = business.categories.reduce((acc, category) => {
+        if (category.serviceLinks && category.serviceLinks.length > 0) {
+          acc[category.name] = category.serviceLinks.map(link => link.service);
+        }
+        return acc;
+      }, {} as Record<string, typeof business.services>);
+    }
 
-  // Add uncategorized services under "Others" category
-  const uncategorizedServices = business.services.filter(service => 
-    service.categoryLinks.length === 0
-  );
-  if (uncategorizedServices.length > 0) {
-    servicesByCategory["Others"] = uncategorizedServices;
+    // Add uncategorized services under "Others" category
+    if (business.services && business.services.length > 0) {
+      const uncategorizedServices = business.services.filter(service => 
+        !service.categoryLinks || service.categoryLinks.length === 0
+      );
+      if (uncategorizedServices.length > 0) {
+        servicesByCategory["Others"] = uncategorizedServices;
+      }
+    }
+  } catch (error) {
+    console.error("Error processing services by category:", error);
+    // Fallback to empty services
+    servicesByCategory = {};
   }
 
   return (

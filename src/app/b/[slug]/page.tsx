@@ -24,7 +24,7 @@ export default async function PublicPage({ params }: PublicPageProps) {
         },
         orderBy: { name: "asc" },
       },
-      team: { orderBy: { name: "asc" } },
+      teamMembers: { orderBy: { name: "asc" } },
       openingHours: { orderBy: { dayOfWeek: "asc" } },
       categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
     },
@@ -39,7 +39,7 @@ export default async function PublicPage({ params }: PublicPageProps) {
         },
         orderBy: { name: "asc" },
       },
-      team: { orderBy: { name: "asc" } },
+      teamMembers: { orderBy: { name: "asc" } },
       openingHours: { orderBy: { dayOfWeek: "asc" } },
       categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
     },
@@ -55,27 +55,8 @@ export default async function PublicPage({ params }: PublicPageProps) {
   let rawCity: string | null = null;
   let rawState: string | null = null;
   let rawZipCode: string | null = null;
-  try {
-    const raw = await (prisma as any).$runCommandRaw({
-      find: 'Business',
-      filter: { _id: { $oid: business.id } },
-      limit: 1,
-    });
-    const first = raw?.cursor?.firstBatch?.[0];
-    if (first) {
-      rawTagline = first.tagline ?? null;
-      rawAbout = first.about ?? null;
-      rawContactEmail = first.contactEmail ?? null;
-      rawContactPhone = first.contactPhone ?? null;
-      rawCountry = first.country ?? null;
-      rawAddress = first.address ?? null;
-      rawCity = first.city ?? null;
-      rawState = first.state ?? null;
-      rawZipCode = first.zipCode ?? null;
-    }
-  } catch (e) {
-    console.warn('Raw business read failed on public page:', e);
-  }
+  // Use Prisma field for slotSize instead of raw MongoDB
+  const rawSlotSize = business.slotSize ?? { value: 30, unit: "minutes" };
 
   // Overlay cookie values (owner-side) over DB values; treat empty strings as null
   const cookieStore = await cookies();
@@ -118,6 +99,7 @@ export default async function PublicPage({ params }: PublicPageProps) {
         city: rawCity,
         state: rawState,
         zipCode: rawZipCode,
+        slotSize: rawSlotSize,
       } as any}
       servicesByCategory={servicesByCategory}
     />

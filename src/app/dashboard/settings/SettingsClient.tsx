@@ -17,18 +17,6 @@ const settingsCategories = [
     id: "profile",
     name: "Your profile",
   },
-  {
-    id: "team",
-    name: "Your team",
-  },
-  {
-    id: "services",
-    name: "Services",
-  },
-  {
-    id: "general",
-    name: "General",
-  },
 ];
 
 const manageCategories = [
@@ -153,6 +141,26 @@ export default function SettingsClient() {
   const [isSavingWorkingHours, setIsSavingWorkingHours] = useState(false);
   const [workingHoursSaved, setWorkingHoursSaved] = useState(false);
   const [workingHoursError, setWorkingHoursError] = useState("");
+
+  // Slot size state
+  const [slotSizeData, setSlotSizeData] = useState({
+    value: 30,
+    unit: "minutes"
+  });
+  const [originalSlotSizeData, setOriginalSlotSizeData] = useState({
+    value: 30,
+    unit: "minutes"
+  });
+  const [hasSlotSizeChanges, setHasSlotSizeChanges] = useState(false);
+
+  // Double booking state
+  const [doubleBookingData, setDoubleBookingData] = useState({
+    allowDoubleBooking: true
+  });
+  const [originalDoubleBookingData, setOriginalDoubleBookingData] = useState({
+    allowDoubleBooking: true
+  });
+  const [hasDoubleBookingChanges, setHasDoubleBookingChanges] = useState(false);
   
   // Profile edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -350,6 +358,16 @@ export default function SettingsClient() {
           };
           setAppearanceData(appearanceIncoming);
           setOriginalAppearanceData(appearanceIncoming);
+
+          // Set slot size data
+          if (business?.slotSize) {
+            setSlotSizeData(business.slotSize);
+            setOriginalSlotSizeData(business.slotSize);
+          }
+
+          // Set double booking data
+          setDoubleBookingData({ allowDoubleBooking: business?.allowDoubleBooking ?? true });
+          setOriginalDoubleBookingData({ allowDoubleBooking: business?.allowDoubleBooking ?? true });
         }
       } catch (error) {
         console.error('Error fetching business:', error);
@@ -531,6 +549,13 @@ export default function SettingsClient() {
           closeTime: day.closeTime,
         }));
 
+      // Debug: Log what we're sending
+      console.log('Saving business hours with slot size:', {
+        name: brandData.name,
+        openingHours: openingHours,
+        slotSize: slotSizeData
+      });
+
       const res = await fetch('/api/business', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -538,6 +563,8 @@ export default function SettingsClient() {
         body: JSON.stringify({
           name: brandData.name, // Include current business name to avoid validation error
           openingHours: openingHours,
+          slotSize: slotSizeData, // Include slot size configuration
+          allowDoubleBooking: doubleBookingData.allowDoubleBooking, // Include double booking setting
         })
       });
 
@@ -547,9 +574,17 @@ export default function SettingsClient() {
         return;
       }
 
+      // Debug: Log the response
+      const responseData = await res.json().catch(() => ({}));
+      console.log('API response after saving:', responseData);
+
       // Update the original data to reflect the saved state
       setOriginalWorkingHoursData(workingHoursData);
+      setOriginalSlotSizeData(slotSizeData);
+      setOriginalDoubleBookingData(doubleBookingData);
       setHasWorkingHoursChanges(false);
+      setHasSlotSizeChanges(false);
+      setHasDoubleBookingChanges(false);
       setWorkingHoursSaved(true);
       
       // Reload business data to ensure sync with public page
@@ -567,27 +602,38 @@ export default function SettingsClient() {
               });
             });
             
-            // Update working hours while preserving the current state
-            const updatedWorkingHours = workingHoursData.map(day => {
-              const existingHour = existingHoursMap.get(day.dayOfWeek);
-              if (existingHour) {
-                return {
-                  ...day,
-                  isEnabled: true, // Day is open
-                  openTime: existingHour.openTime,
-                  closeTime: existingHour.closeTime,
-                };
-              } else {
-                return {
-                  ...day,
-                  isEnabled: false, // Day is closed (disabled)
-                  // Keep the current open/close times for when they re-enable it
-                };
-              }
-            });
-            
-            setWorkingHoursData(updatedWorkingHours);
-            setOriginalWorkingHoursData(updatedWorkingHours);
+                      // Update working hours while preserving the current state
+          const updatedWorkingHours = workingHoursData.map(day => {
+            const existingHour = existingHoursMap.get(day.dayOfWeek);
+            if (existingHour) {
+              return {
+                ...day,
+                isEnabled: true, // Day is open
+                openTime: existingHour.openTime,
+                closeTime: existingHour.closeTime,
+              };
+            } else {
+              return {
+                ...day,
+                isEnabled: false, // Day is closed (disabled)
+                // Keep the current open/close times for when they re-enable it
+              };
+            }
+          });
+          
+          setWorkingHoursData(updatedWorkingHours);
+          setOriginalWorkingHoursData(updatedWorkingHours);
+
+          // Update slot size with the refreshed data
+          if (refreshedBusiness?.slotSize) {
+            console.log('Refreshed slot size from API:', refreshedBusiness.slotSize);
+            setSlotSizeData(refreshedBusiness.slotSize);
+            setOriginalSlotSizeData(refreshedBusiness.slotSize);
+          }
+
+          // Update double booking with the refreshed data
+          setDoubleBookingData({ allowDoubleBooking: refreshedBusiness?.allowDoubleBooking ?? true });
+          setOriginalDoubleBookingData({ allowDoubleBooking: refreshedBusiness?.allowDoubleBooking ?? true });
           }
         }
       } catch (refreshError) {
@@ -752,12 +798,6 @@ export default function SettingsClient() {
               <nav className="flex space-x-6">
                 <button className="py-1.5 px-1 border-b-2 border-gray-900 text-xs font-medium text-gray-900">
                   About
-                </button>
-                <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
-                  Services
-                </button>
-                <button className="py-1.5 px-1 text-xs font-medium text-gray-500 hover:text-gray-700">
-                  Working hours
                 </button>
               </nav>
             </div>
@@ -1632,12 +1672,76 @@ export default function SettingsClient() {
                           <div className="text-xs text-red-600">{workingHoursError}</div>
                         )}
 
+                        {/* Slot Size Configuration */}
+                        <div className="mt-8 pt-8 border-t border-gray-200">
+                          <h3 className="text-sm font-medium text-gray-900 mb-4">Booking slot size</h3>
+                          <p className="text-xs text-gray-600 mb-4">
+                            How often should available booking slots appear?
+                          </p>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              min="1"
+                              max="120"
+                              value={slotSizeData.value}
+                              onChange={(e) => {
+                                const newValue = parseInt(e.target.value) || 1;
+                                setSlotSizeData(prev => ({ ...prev, value: newValue }));
+                                setHasSlotSizeChanges(true);
+                                setHasWorkingHoursChanges(true);
+                              }}
+                              className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                            />
+                            <select
+                              value={slotSizeData.value}
+                              onChange={(e) => {
+                                setSlotSizeData(prev => ({ ...prev, unit: e.target.value }));
+                                setHasSlotSizeChanges(true);
+                                setHasWorkingHoursChanges(true);
+                              }}
+                              className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                            >
+                              <option value="minutes">Minutes</option>
+                              <option value="hours">Hours</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Double Booking Control */}
+                        <div className="mt-8 pt-8 border-t border-gray-200">
+                          <h3 className="text-sm font-medium text-gray-900 mb-4">Double booking control</h3>
+                          <p className="text-xs text-gray-600 mb-4">
+                            Allow customers to book overlapping time slots?
+                          </p>
+                          <div className="flex items-center space-x-2">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={doubleBookingData.allowDoubleBooking}
+                                onChange={(e) => {
+                                  setDoubleBookingData(prev => ({ ...prev, allowDoubleBooking: e.target.checked }));
+                                  setHasDoubleBookingChanges(true);
+                                  setHasWorkingHoursChanges(true);
+                                }}
+                                className="sr-only peer"
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
+                              <span className="ml-3 text-xs text-gray-900">
+                                {doubleBookingData.allowDoubleBooking ? 'Allowed' : 'Prevented'}
+                              </span>
+                            </label>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            When disabled, customers cannot book time slots that overlap with existing bookings. Business owners can always create overlapping bookings from the dashboard.
+                          </p>
+                        </div>
+
                         {/* Save Changes Button */}
                         <div className="mt-8 flex justify-start">
                           <button
                             type="button"
                             disabled={!hasWorkingHoursChanges || isSavingWorkingHours}
-                            className={`px-4 py-1.5 rounded-md transition-colors text-sm ${
+                            className={`px-4 py-2 rounded-md transition-colors text-sm ${
                               !hasWorkingHoursChanges || isSavingWorkingHours
                                 ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                 : 'bg-black text-white hover:bg-gray-800'

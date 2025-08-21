@@ -14,7 +14,7 @@ interface Business {
   id: string;
   name: string;
   profilePic: string | null;
-  team: TeamMember[];
+  teamMembers: TeamMember[];
   theme?: string | null;
   brandColor?: string | null;
 }
@@ -87,7 +87,7 @@ export default function TeamSelectionPageClient({ business, serviceId, selectedS
                <h2 className={`text-base font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3`}>Team Members</h2>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-                {business.team.map((member) => (
+                {business.teamMembers.map((member) => (
                                      <div
                        key={member.id}
                        onClick={() => handleTeamMemberSelect(member)}

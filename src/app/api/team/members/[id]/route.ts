@@ -1,175 +1,189 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../../auth/nextauth';
-import prisma from '@/lib/prisma';
-import { updateTeamMember, removeTeamMember } from '@/lib/team-management';
-import { canManageTeamMembers, canManageRole } from '@/lib/permissions';
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../../../auth/nextauth";
+import prisma from "@/lib/prisma";
+import { PermissionAction, TeamMemberRole } from "@prisma/client";
+import { roleHasPermission, canManageRole } from "@/lib/permissions";
 
+// PUT - Update team member role
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Get session
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const teamMemberId = params.id;
-    const body = await request.json();
-    const { role, status, name, phone } = body;
+    const { id: memberId } = params;
+    const { role } = await request.json();
 
-    // Get current user's team member info
+    // Get the current user's team member context
     const currentTeamMember = await prisma.teamMember.findFirst({
       where: {
         userId: session.user.id,
         status: 'ACTIVE',
       },
-      include: {
-        business: true,
-      },
     });
 
     if (!currentTeamMember) {
-      return NextResponse.json({ error: 'Team member not found' }, { status: 403 });
+      return NextResponse.json({ error: "Team member not found" }, { status: 403 });
     }
 
-    // Check if user has permission to manage team members
-    if (!canManageTeamMembers(currentTeamMember.role)) {
-      return NextResponse.json({ error: 'Insufficient permissions to manage team members' }, { status: 403 });
+    // Check permission to manage team members
+    if (!roleHasPermission(currentTeamMember.role, PermissionAction.MANAGE_TEAM_MEMBERS)) {
+      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
-    // Get target team member
-    const targetTeamMember = await prisma.teamMember.findUnique({
-      where: { id: teamMemberId },
-      include: {
-        business: true,
-      },
+    // Get the team member to be updated
+    const targetMember = await prisma.teamMember.findUnique({
+      where: { id: memberId },
+      include: { business: true },
     });
 
-    if (!targetTeamMember) {
-      return NextResponse.json({ error: 'Target team member not found' }, { status: 404 });
+    if (!targetMember) {
+      return NextResponse.json({ error: "Target team member not found" }, { status: 404 });
     }
 
     // Check if target member is in the same business
-    if (targetTeamMember.businessId !== currentTeamMember.businessId) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    if (targetMember.businessId !== currentTeamMember.businessId) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Check if user can manage this specific team member
-    if (!canManageRole(currentTeamMember.role, targetTeamMember.role)) {
-      return NextResponse.json({ error: 'Cannot manage team member with higher or equal role' }, { status: 403 });
+    // Check if user is trying to modify themselves
+    if (targetMember.id === currentTeamMember.id) {
+      return NextResponse.json({ error: "Cannot modify your own role" }, { status: 400 });
     }
 
-    // Update team member
-    const updateResult = await updateTeamMember(
-      teamMemberId,
-      { role, status, name, phone },
-      session.user.id
-    );
-
-    if (!updateResult.success) {
-      return NextResponse.json(
-        { error: updateResult.error || 'Failed to update team member' },
-        { status: 400 }
-      );
+    // Check if user can assign this role
+    if (!canManageRole(currentTeamMember.role, role)) {
+      return NextResponse.json({ error: "Cannot assign this role" }, { status: 400 });
     }
 
-    return NextResponse.json({
-      success: true,
-      teamMember: updateResult.teamMember,
-      message: 'Team member updated successfully',
+    // Check if user is trying to promote someone above their own level
+    if (role === TeamMemberRole.OWNER && currentTeamMember.role !== TeamMemberRole.OWNER) {
+      return NextResponse.json({ error: "Only owners can assign owner role" }, { status: 400 });
+    }
+
+    // Update the team member's role
+    const updatedMember = await prisma.teamMember.update({
+      where: { id: memberId },
+      data: { role },
     });
 
+    // Create audit log entry
+    await prisma.auditLog.create({
+      data: {
+        action: 'TEAM_MEMBER_ROLE_UPDATED',
+        entityType: 'TEAM_MEMBER',
+        entityId: memberId,
+        userId: currentTeamMember.userId,
+        businessId: currentTeamMember.businessId,
+        details: {
+          previousRole: targetMember.role,
+          newRole: role,
+          updatedMemberId: memberId,
+        },
+      },
+    });
+
+    return NextResponse.json(updatedMember);
   } catch (error) {
-    console.error('Error updating team member:', error);
+    console.error("Error updating team member role:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
 }
 
+// DELETE - Remove team member
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Get session
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const teamMemberId = params.id;
+    const { id: memberId } = params;
 
-    // Get current user's team member info
+    // Get the current user's team member context
     const currentTeamMember = await prisma.teamMember.findFirst({
       where: {
         userId: session.user.id,
         status: 'ACTIVE',
       },
-      include: {
-        business: true,
-      },
     });
 
     if (!currentTeamMember) {
-      return NextResponse.json({ error: 'Team member not found' }, { status: 403 });
+      return NextResponse.json({ error: "Team member not found" }, { status: 403 });
     }
 
-    // Check if user has permission to manage team members
-    if (!canManageTeamMembers(currentTeamMember.role)) {
-      return NextResponse.json({ error: 'Insufficient permissions to manage team members' }, { status: 403 });
+    // Check permission to manage team members
+    if (!roleHasPermission(currentTeamMember.role, PermissionAction.MANAGE_TEAM_MEMBERS)) {
+      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
-    // Get target team member
-    const targetTeamMember = await prisma.teamMember.findUnique({
-      where: { id: teamMemberId },
-      include: {
-        business: true,
-      },
+    // Get the team member to be removed
+    const targetMember = await prisma.teamMember.findUnique({
+      where: { id: memberId },
+      include: { business: true },
     });
 
-    if (!targetTeamMember) {
-      return NextResponse.json({ error: 'Target team member not found' }, { status: 404 });
+    if (!targetMember) {
+      return NextResponse.json({ error: "Target team member not found" }, { status: 404 });
     }
 
     // Check if target member is in the same business
-    if (targetTeamMember.businessId !== currentTeamMember.businessId) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    if (targetMember.businessId !== currentTeamMember.businessId) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Check if user can manage this specific team member
-    if (!canManageRole(currentTeamMember.role, targetTeamMember.role)) {
-      return NextResponse.json({ error: 'Cannot manage team member with higher or equal role' }, { status: 403 });
+    // Check if user is trying to remove themselves
+    if (targetMember.id === currentTeamMember.id) {
+      return NextResponse.json({ error: "Cannot remove yourself from the team" }, { status: 400 });
     }
 
-    // Prevent removing yourself
-    if (targetTeamMember.userId === session.user.id) {
-      return NextResponse.json({ error: 'Cannot remove yourself from the team' }, { status: 400 });
+    // Check if user can remove this team member
+    if (!canManageRole(currentTeamMember.role, targetMember.role)) {
+      return NextResponse.json({ error: "Cannot remove this team member" }, { status: 400 });
     }
 
-    // Remove team member
-    const removeResult = await removeTeamMember(teamMemberId, session.user.id);
-
-    if (!removeResult.success) {
-      return NextResponse.json(
-        { error: removeResult.error || 'Failed to remove team member' },
-        { status: 400 }
-      );
+    // Check if trying to remove an owner
+    if (targetMember.role === TeamMemberRole.OWNER) {
+      return NextResponse.json({ error: "Cannot remove an owner" }, { status: 400 });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Team member removed successfully',
+    // Remove the team member
+    await prisma.teamMember.delete({
+      where: { id: memberId },
     });
 
+    // Create audit log entry
+    await prisma.auditLog.create({
+      data: {
+        action: 'TEAM_MEMBER_REMOVED',
+        entityType: 'TEAM_MEMBER',
+        entityId: memberId,
+        userId: currentTeamMember.userId,
+        businessId: currentTeamMember.businessId,
+        details: {
+          removedMemberId: memberId,
+          removedMemberRole: targetMember.role,
+          removedMemberName: targetMember.name,
+        },
+      },
+    });
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error removing team member:', error);
+    console.error("Error removing team member:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

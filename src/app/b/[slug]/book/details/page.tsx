@@ -30,7 +30,7 @@ export default async function DetailsPage({
         profilePic: true,
         theme: true,
         brandColor: true,
-        team: {
+        teamMembers: {
           take: 1,
           select: {
             id: true,
@@ -62,12 +62,12 @@ export default async function DetailsPage({
   console.log("Business data:", {
     id: business.id,
     name: business.name,
-    teamCount: business.team.length,
+    teamCount: business.teamMembers.length,
     servicesCount: business.services.length
   });
 
   const selectedService = business.services[0];
-  let selectedTeamMember = business.team[0];
+  let selectedTeamMember = business.teamMembers[0];
 
   if (!selectedService) {
     console.error("Service not found for serviceId:", serviceId);
@@ -77,8 +77,8 @@ export default async function DetailsPage({
   if (!selectedTeamMember) {
     console.error("Team member not found for teamMemberId:", teamMemberId);
     // Create a default team member if none exist
-    if (business.team.length > 0) {
-      selectedTeamMember = business.team[0];
+    if (business.teamMembers.length > 0) {
+      selectedTeamMember = business.teamMembers[0];
     } else {
       // Create a default team member
       selectedTeamMember = {

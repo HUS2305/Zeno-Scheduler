@@ -27,7 +27,16 @@ export default async function TimeSelectionPage({
         profilePic: true,
         theme: true,
         brandColor: true,
-        team: {
+        slotSize: true,
+        allowDoubleBooking: true,
+        openingHours: {
+          select: {
+            dayOfWeek: true,
+            openTime: true,
+            closeTime: true,
+          },
+        },
+        teamMembers: {
           take: 1,
           select: {
             id: true,
@@ -55,7 +64,7 @@ export default async function TimeSelectionPage({
     notFound();
   }
 
-  const selectedTeamMember = business.team[0];
+  const selectedTeamMember = business.teamMembers[0];
   const selectedService = business.services[0];
 
   if (!selectedService) {

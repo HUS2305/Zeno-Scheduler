@@ -38,6 +38,7 @@ interface Business {
   id: string;
   name: string;
   profilePic: string | null;
+  slug?: string | null;
   tagline?: string | null;
   about?: string | null;
   industry?: string | null;
@@ -51,7 +52,7 @@ interface Business {
   theme?: string | null;
   brandColor?: string | null;
   services: Service[];
-  team: TeamMember[];
+  teamMembers: TeamMember[];
   openingHours: OpeningHour[];
 }
 
@@ -228,7 +229,15 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
                         {expandedCategories[categoryName] === true && (
                           <div className="space-y-2">
                             {services.map((service) => (
-                              <ServiceCard key={service.id} service={service} theme={theme} brandColor={brandColor} />
+                              <ServiceCard 
+                                key={service.id} 
+                                service={service} 
+                                theme={theme} 
+                                brandColor={brandColor}
+                                businessId={business.id}
+                                businessSlug={business.slug || undefined}
+                                teamMembers={business.teamMembers}
+                              />
                             ))}
                           </div>
                         )}
@@ -238,11 +247,11 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
               </div>
 
               {/* Team Section */}
-              <div ref={teamRef} className={`p-6 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
-                <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-4`}>Team</h2>
+              <div ref={teamRef} className={`p-6 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'} mb-4`}>Team</h2>
                 
                 <div className="space-y-2">
-                  {business.team.map((member) => (
+                  {business.teamMembers.map((member) => (
                     <TeamMemberCard key={member.id} member={member} theme={theme} brandColor={brandColor} />
                   ))}
                 </div>

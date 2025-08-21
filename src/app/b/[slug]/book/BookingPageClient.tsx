@@ -30,7 +30,7 @@ interface Business {
   name: string;
   profilePic: string | null;
   services: Service[];
-  team: TeamMember[];
+  teamMembers: TeamMember[];
   openingHours: any[];
   theme?: string | null;
   brandColor?: string | null;
@@ -55,10 +55,10 @@ export default function BookingPageClient({ business, servicesByCategory, slug }
 
   const handleServiceSelect = (service: Service) => {
     // Navigate to team member selection or time selection based on team size
-    if (business.team.length === 1) {
+    if (business.teamMembers.length === 1) {
       // Skip team selection if only one member
-      router.push(`/b/${business.id}/book/time?serviceId=${service.id}&teamMemberId=${business.team[0].id}`);
-    } else if (business.team.length > 1) {
+      router.push(`/b/${business.id}/book/time?serviceId=${service.id}&teamMemberId=${business.teamMembers[0].id}`);
+    } else if (business.teamMembers.length > 1) {
       router.push(`/b/${business.id}/book/team?serviceId=${service.id}`);
     } else {
       // No team members - this shouldn't happen but handle it gracefully
