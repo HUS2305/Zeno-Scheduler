@@ -486,6 +486,12 @@ export default function SettingsClient() {
         window.dispatchEvent(new CustomEvent('profileUpdated', { 
           detail: { name: profileData.name } 
         }));
+        
+        // NextAuth now always fetches fresh data from the database
+        // Just refresh the page to get the updated session data
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
       } else {
         const errorData = await response.json();
         setError(errorData.error || "Failed to update profile");

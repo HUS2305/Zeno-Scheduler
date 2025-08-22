@@ -27,11 +27,13 @@ interface Booking {
   note?: string;
 }
 
-export default function CalendarWrapper() {
+export default function CalendarWrapper({ userProfileName }: { userProfileName?: string }) {
   const [weekBookings, setWeekBookings] = useState<Booking[]>([]);
   const [bookingsByDay, setBookingsByDay] = useState<Record<string, Booking[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const today = new Date();
+  
+  // Profile updates are handled by the SettingsClient which forces a complete session refresh
   const [currentStartOfWeek, setCurrentStartOfWeek] = useState(() => {
     const startOfWeek = new Date(today);
     // Adjust to start week on Monday (0 = Sunday, 1 = Monday, etc.)
@@ -114,6 +116,7 @@ export default function CalendarWrapper() {
       bookingsByDay={bookingsByDay}
       onWeekChange={handleWeekChange}
       onAppointmentCreated={fetchBookings}
+      userProfileName={userProfileName}
     />
   );
 } 

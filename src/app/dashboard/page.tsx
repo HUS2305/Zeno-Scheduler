@@ -77,17 +77,21 @@ export default async function DashboardPage() {
   }, {} as Record<string, typeof weekBookings>);
 
   return (
-    <div className="p-4">
-      <div className="mb-6">
+    <div className="h-full flex flex-col p-4">
+      <div className="mb-6 flex-shrink-0">
         <h1 className="text-xl font-semibold text-gray-900">Overview</h1>
         <p className="text-sm text-gray-600 mt-1">Your business at a glance with key metrics and upcoming appointments.</p>
       </div>
 
       {/* Stats Row */}
-      <DashboardStats businessId={business.id} />
+      <div className="flex-shrink-0">
+        <DashboardStats businessId={business.id} />
+      </div>
 
       {/* Interactive Calendar */}
-      <CalendarWrapper />
+      <div className="flex-1 min-h-0">
+        <CalendarWrapper userProfileName={session.user.name || 'HEJ'} />
+      </div>
     </div>
   );
 }

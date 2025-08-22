@@ -212,7 +212,10 @@ export default async function TeamPage() {
           </div>
         </div>
 
-        <TeamManagementClient />
+        <TeamManagementClient 
+          userProfileName={session.user.name || 'HEJ'}
+          userEmail={session.user.email || 'hussainaljarrah45@gmail.com'}
+        />
       </div>
     );
   } catch (error) {

@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, duration, price, description, icon, isActive, categoryIds, teamMemberIds, colorTheme } = await request.json();
+    const { name, duration, price, categoryIds, teamMemberIds, colorTheme } = await request.json();
 
     // Validate required fields
     if (!name || !duration) {
@@ -149,7 +149,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, name, duration, price, description, icon, isActive, categoryIds, teamMemberIds, colorTheme } = await request.json();
+    const { id, name, duration, price, categoryIds, teamMemberIds, colorTheme } = await request.json();
 
     if (!id) {
       return NextResponse.json(

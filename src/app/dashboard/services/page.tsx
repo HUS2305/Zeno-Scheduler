@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Users, Share, Link, MoreVertical, Clock, DollarSign, GripVertical } from "lucide-react";
+import ServiceModal from "@/components/dashboard/ServiceModal";
 import {
   DndContext,
   closestCenter,
@@ -47,10 +48,6 @@ interface Service {
   name: string;
   duration: number;
   price: number;
-  description?: string;
-  icon?: string;
-  isActive?: boolean;
-  isHidden?: boolean;
   colorTheme?: string;
   categoryLinks?: Array<{
     categoryId: string;
@@ -96,6 +93,15 @@ export default function ServicesPage() {
   const [selectedServicesForEdit, setSelectedServicesForEdit] = useState<string[]>([]);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState<string | null>(null);
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [editingService, setEditingService] = useState<{
+    id: string;
+    name: string;
+    duration: number;
+    price: number;
+    colorTheme: string;
+    categoryIds: string[];
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -192,11 +198,23 @@ export default function ServicesPage() {
   };
 
   const handleServiceClick = (service: Service) => {
-    router.push(`/dashboard/services/${service.id}`);
+    // Extract categoryIds from the categoryLinks structure
+    const categoryIds = service.categoryLinks?.map(link => link.categoryId) || [];
+    
+    setEditingService({
+      id: service.id,
+      name: service.name,
+      duration: service.duration,
+      price: service.price,
+      colorTheme: service.colorTheme || "blue",
+      categoryIds: categoryIds,
+    });
+    setShowServiceModal(true);
   };
 
   const handleCreateService = () => {
-    router.push("/dashboard/services/new");
+    setEditingService(null);
+    setShowServiceModal(true);
   };
 
   const handleDeleteService = (serviceId: string) => {
@@ -255,31 +273,21 @@ export default function ServicesPage() {
     }
   };
 
-  const handleToggleHidden = async (serviceId: string) => {
-    try {
-      const response = await fetch("/api/services/toggle-hidden", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ serviceId }),
-      });
 
-      if (response.ok) {
-        // Refresh services to show updated hidden status
-        await fetchServices();
-        setServiceDropdownOpen(null);
-      } else {
-        setError("Failed to toggle service visibility");
-      }
-    } catch (error) {
-      console.error("Error toggling service visibility:", error);
-      setError("Failed to toggle service visibility");
-    }
-  };
 
   const handleEditService = (service: Service) => {
-    router.push(`/dashboard/services/${service.id}`);
+    // Extract categoryIds from the categoryLinks structure
+    const categoryIds = service.categoryLinks?.map(link => link.categoryId) || [];
+    
+    setEditingService({
+      id: service.id,
+      name: service.name,
+      duration: service.duration,
+      price: service.price,
+      colorTheme: service.colorTheme || "blue",
+      categoryIds: categoryIds,
+    });
+    setShowServiceModal(true);
     setServiceDropdownOpen(null);
   };
 
@@ -449,6 +457,17 @@ export default function ServicesPage() {
 
   const clearError = () => {
     setError("");
+  };
+
+  const handleServiceSaved = () => {
+    // Refresh services and categories after saving
+    fetchServices();
+    fetchCategories();
+  };
+
+  const handleCloseServiceModal = () => {
+    setShowServiceModal(false);
+    setEditingService(null);
   };
 
   if (isLoading) {
@@ -637,7 +656,6 @@ export default function ServicesPage() {
                       onClick={() => handleServiceClick(service)}
                       onDelete={() => handleDeleteService(service.id)}
                       onDuplicate={handleDuplicateService}
-                      onToggleHidden={handleToggleHidden}
                       onEdit={handleEditService}
                       serviceDropdownOpen={serviceDropdownOpen}
                       setServiceDropdownOpen={setServiceDropdownOpen}
@@ -873,16 +891,16 @@ export default function ServicesPage() {
                             </span>
                           </div>
 
-                                           {/* Services List */}
+                                                                                      {/* Services List */}
                           <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">
                             {services
                               .filter(service => service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()))
                               .map((service) => (
-                                                                 <div
-                                   key={service.id}
-                                   onClick={() => handleServiceToggleForEdit(service.id)}
-                                   className="flex items-center p-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer"
-                                 >
+                                <div
+                                  key={service.id}
+                                  onClick={() => handleServiceToggleForEdit(service.id)}
+                                  className="flex items-center p-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer"
+                                >
                                   <div className="flex items-center mr-3">
                                     <div className={`h-4 w-4 rounded-sm border border-gray-300 flex items-center justify-center ${
                                       selectedServicesForEdit.includes(service.id)
@@ -898,7 +916,7 @@ export default function ServicesPage() {
                                   </div>
                                   <div className="flex items-center mr-3">
                                     <div className="w-8 h-8 bg-gray-100 rounded-md flex items-center justify-center">
-                                      <span className="text-sm">{service.icon || '📋'}</span>
+                                      <span className="text-sm">📋</span>
                                     </div>
                                   </div>
                                   <div className="flex-1">
@@ -910,42 +928,49 @@ export default function ServicesPage() {
                                 </div>
                               ))}
                           </div>
-               </div>
+                        </div>
 
-               {/* Modal Footer */}
-               <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                 <button
-                   onClick={handleCloseEditCategoryModal}
-                   className="px-3 py-1.5 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium"
-                 >
-                   Cancel
-                 </button>
-                 <button
-                   onClick={handleUpdateCategory}
-                   disabled={!editCategoryName.trim()}
-                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                     editCategoryName.trim()
-                       ? 'bg-black text-white hover:bg-gray-800'
-                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                   }`}
-                 >
-                   Update
-                 </button>
-               </div>
-             </div>
-           </div>
-         </div>
-       )}
-     </div>
-   );
- }
+                        {/* Modal Footer */}
+                        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                          <button
+                            onClick={handleCloseEditCategoryModal}
+                            className="px-3 py-1.5 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleUpdateCategory}
+                            disabled={!editCategoryName.trim()}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                              editCategoryName.trim()
+                                ? 'bg-black text-white hover:bg-gray-800'
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                          >
+                            Update
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+      {/* Service Modal */}
+      <ServiceModal
+        isOpen={showServiceModal}
+        onClose={handleCloseServiceModal}
+        onServiceSaved={handleServiceSaved}
+        editingService={editingService}
+      />
+    </div>
+  );
+}
 
 function SortableServiceBlock({ 
   service, 
   onClick, 
   onDelete, 
   onDuplicate,
-  onToggleHidden,
   onEdit,
   isHighlighted,
   serviceDropdownOpen,
@@ -955,7 +980,6 @@ function SortableServiceBlock({
   onClick: () => void;
   onDelete: () => void;
   onDuplicate: (serviceId: string) => void;
-  onToggleHidden: (serviceId: string) => void;
   onEdit: (service: Service) => void;
   isHighlighted?: boolean;
   serviceDropdownOpen: string | null;
@@ -984,7 +1008,7 @@ function SortableServiceBlock({
       style={style}
       className={`bg-white rounded-md shadow-sm border transition-all hover:shadow-md relative ${
         isHighlighted ? 'border-yellow-300 border-l-4' : 'border-gray-200'
-      } ${isDragging ? 'shadow-lg' : ''} ${service.isHidden ? 'opacity-60' : ''}`}
+      } ${isDragging ? 'shadow-lg' : ''}`}
     >
       {/* Colored left border */}
       <div 
@@ -1001,16 +1025,13 @@ function SortableServiceBlock({
           <GripVertical className="h-3.5 w-3.5" />
         </div>
         
-        {/* Icon */}
-        <div className="w-12 h-12 bg-gray-100 rounded-md flex items-center justify-center mr-3">
-          <span className="text-lg">{service.icon}</span>
-        </div>
+        
 
-        {/* Service Details */}
-        <div 
-          className="flex-1 cursor-pointer"
-          onClick={onClick}
-        >
+                 {/* Service Details */}
+         <div 
+           className="flex-1 cursor-pointer ml-2"
+           onClick={onClick}
+         >
           <h3 className="font-medium text-gray-900 text-sm">{service.name}</h3>
           <p className="text-xs text-gray-500">
             {service.duration} mins · {service.price === 0 ? 'Free' : `$${service.price}`}
@@ -1118,28 +1139,7 @@ function SortableServiceBlock({
                 </svg>
                 Delete
               </button>
-              <div className="border-t border-gray-100 my-1"></div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleHidden(service.id);
-                }}
-                className="w-full text-left px-3 py-2 text-xs text-gray-900 hover:bg-gray-50 flex items-center justify-between"
-              >
-                <div className="flex items-center">
-                  <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                  </svg>
-                  Set to hidden
-                </div>
-                <div className={`w-4 h-2 rounded-full transition-colors ${
-                  service.isHidden ? 'bg-black' : 'bg-gray-300'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full bg-white transition-transform ${
-                    service.isHidden ? 'translate-x-2' : 'translate-x-0'
-                  }`}></div>
-                </div>
-              </button>
+
             </div>
           )}
         </div>

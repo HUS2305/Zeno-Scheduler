@@ -1,6 +1,13 @@
 'use client';
 
-export default function TeamManagementClient() {
+interface TeamManagementClientProps {
+  userProfileName?: string;
+  userEmail?: string;
+}
+
+export default function TeamManagementClient({ userProfileName, userEmail }: TeamManagementClientProps) {
+  // Profile updates are handled by the SettingsClient which forces a complete session refresh
+
   return (
     <div className="relative">
       {/* Blurred Background Content */}
@@ -74,8 +81,8 @@ export default function TeamManagementClient() {
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">Hussein Jarrah</div>
-                          <div className="text-sm text-gray-500">hussainaljarrah45@gmail.com</div>
+                          <div className="text-sm font-medium text-gray-900">{userProfileName || 'HEJ'}</div>
+                          <div className="text-sm text-gray-500">{userEmail || 'hussainaljarrah45@gmail.com'}</div>
                         </div>
                       </div>
                     </td>

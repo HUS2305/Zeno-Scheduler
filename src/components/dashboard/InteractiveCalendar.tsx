@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AppointmentModal from "./AppointmentModal";
 import AppointmentEditModal from "./AppointmentEditModal";
 
@@ -55,6 +55,7 @@ interface InteractiveCalendarProps {
   bookingsByDay: Record<string, Booking[]>;
   onWeekChange?: (startDate: Date, endDate: Date) => void;
   onAppointmentCreated?: () => void;
+  userProfileName?: string;
 }
 
 export default function InteractiveCalendar({
@@ -65,6 +66,7 @@ export default function InteractiveCalendar({
   bookingsByDay,
   onWeekChange,
   onAppointmentCreated,
+  userProfileName,
 }: InteractiveCalendarProps) {
   const [selectedSlot, setSelectedSlot] = useState<{ date: Date; booking?: Booking } | null>(null);
   const [hoveredSlot, setHoveredSlot] = useState<{ date: Date; hour: number; minute: number } | null>(null);
@@ -73,6 +75,9 @@ export default function InteractiveCalendar({
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedDateTime, setSelectedDateTime] = useState<{ date: Date; time: string } | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  
+  // Ref for the calendar grid to enable auto-scrolling
+  const calendarGridRef = useRef<HTMLDivElement>(null);
 
   // Update current time every minute
   useEffect(() => {
@@ -82,6 +87,28 @@ export default function InteractiveCalendar({
 
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-scroll to current time on mount and when current time changes
+  useEffect(() => {
+    if (calendarGridRef.current) {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      
+      // Calculate total minutes since start of calendar (12 AM = 0)
+      const totalMinutes = currentHour * 60 + currentMinute;
+      
+      // Convert to pixels (24px per 15-minute slot)
+      const pixelsPerMinute = 24 / 15; // 24px per 15 minutes = 1.6px per minute
+      const scrollPosition = totalMinutes * pixelsPerMinute;
+      
+      // Scroll to current time with some offset to center it
+      const containerHeight = 600; // Height of the calendar container
+      const finalScrollPosition = Math.max(0, scrollPosition - (containerHeight / 2));
+      
+      calendarGridRef.current.scrollTop = finalScrollPosition;
+    }
+  }, [currentTime]);
 
   // Calculate current time position
   const getCurrentTimePosition = () => {
@@ -170,7 +197,7 @@ export default function InteractiveCalendar({
           <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
             <span className="text-sm font-medium text-gray-600">H</span>
           </div>
-          <span className="text-sm font-medium text-gray-900">hussain aljarrah</span>
+          <span className="text-sm font-medium text-gray-900">{userProfileName || 'HEJ'}</span>
         </div>
 
         {/* Center - Week picker */}
@@ -243,7 +270,7 @@ export default function InteractiveCalendar({
           </div>
 
           {/* Main Calendar Grid */}
-          <div className="grid grid-cols-8 relative">
+          <div ref={calendarGridRef} className="grid grid-cols-8 relative h-[600px] overflow-y-auto">
             {/* Calendar Selector Column */}
             <div className="relative border-r border-gray-200 w-48">
               {/* Time labels positioned absolutely */}

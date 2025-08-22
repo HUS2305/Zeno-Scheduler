@@ -38,7 +38,20 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    // Also update the corresponding team member name if it exists
+    try {
+      await prisma.teamMember.updateMany({
+        where: { userId: session.user.id },
+        data: { name: name.trim() },
+      });
+    } catch (error) {
+      console.warn('Could not update team member name:', error);
+      // Don't fail the request if team member update fails
+    }
+
+    // Force NextAuth to invalidate the session cache
+    // This ensures getServerSession() returns fresh data
+    const response = NextResponse.json({
       id: updatedUser.id,
       name: updatedUser.name,
       email: updatedUser.email,
@@ -50,6 +63,13 @@ export async function PUT(request: NextRequest) {
       state: updatedUser.state,
       zipCode: updatedUser.zipCode,
     });
+    
+    // Clear any cached session data by setting cache control headers
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    
+    return response;
   } catch (error) {
     console.error("Error updating user profile:", error);
     return NextResponse.json(

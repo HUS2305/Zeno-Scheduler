@@ -126,6 +126,26 @@ export const authOptions: NextAuthOptions = {
       if (token && session.user) {
         session.user.id = token.id as string;
         
+                  // Always fetch fresh user data from the database
+          try {
+            const freshUser = await prisma.user.findUnique({
+              where: { id: token.id as string },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            });
+            
+            if (freshUser) {
+              session.user.name = freshUser.name;
+              session.user.email = freshUser.email;
+            }
+          } catch (error) {
+            console.error("Error getting fresh user data in session:", error);
+            // Don't fail session - just log the error
+          }
+        
         // Add team member context to session (with better error handling)
         if (token.teamMemberId && token.businessId) {
           try {
