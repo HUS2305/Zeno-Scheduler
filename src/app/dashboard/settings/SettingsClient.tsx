@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import ColorPicker from "../../../components/dashboard/ColorPicker";
+import { getDefaultTimeFormat, formatTime } from "@/lib/time-utils";
 
 // Settings categories data
 const settingsCategories = [
@@ -17,39 +18,9 @@ const settingsCategories = [
     id: "profile",
     name: "Your profile",
   },
-];
-
-const manageCategories = [
-  {
-    id: "booking-page",
-    name: "Booking Page",
-    hasDropdown: true,
-  },
-  {
-    id: "branded-app",
-    name: "Your branded app",
-  },
-  {
-    id: "payments",
-    name: "Payments",
-    hasDropdown: true,
-  },
-  {
-    id: "reports",
-    name: "Reports",
-  },
   {
     id: "billing",
     name: "Billing",
-  },
-  {
-    id: "notifications",
-    name: "Notifications",
-    hasDropdown: true,
-  },
-  {
-    id: "reviews",
-    name: "Reviews",
   },
   {
     id: "security",
@@ -57,22 +28,12 @@ const manageCategories = [
   },
 ];
 
+
+
 const moreCategories = [
   {
-    id: "download-apps",
-    name: "Download apps",
-  },
-  {
-    id: "activity",
-    name: "Activity",
-  },
-  {
-    id: "refer-friend",
-    name: "Refer a friend",
-  },
-  {
-    id: "log-out",
-    name: "Log out",
+    id: "sign-out",
+    name: "Sign out",
   },
 ];
 
@@ -155,15 +116,84 @@ export default function SettingsClient() {
 
   // Double booking state
   const [doubleBookingData, setDoubleBookingData] = useState({
-    allowDoubleBooking: true
+    allowDoubleBooking: true,
   });
   const [originalDoubleBookingData, setOriginalDoubleBookingData] = useState({
-    allowDoubleBooking: true
+    allowDoubleBooking: true,
   });
   const [hasDoubleBookingChanges, setHasDoubleBookingChanges] = useState(false);
-  
+
+  // Time format state
+  const [timeFormatData, setTimeFormatData] = useState({
+    timeFormat: "24",
+  });
+  const [originalTimeFormatData, setOriginalTimeFormatData] = useState({
+    timeFormat: "24",
+  });
+  const [hasTimeFormatChanges, setHasTimeFormatChanges] = useState(false);
+
+  // Function to convert time between 12-hour and 24-hour formats
+  const convertTimeFormat = (time: string, fromFormat: string, toFormat: string): string => {
+    if (fromFormat === toFormat) return time;
+    
+    const [hour, minute] = time.split(':').map(Number);
+    
+    if (toFormat === "12") {
+      // Convert 24-hour to 12-hour
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour % 12 || 12;
+      return `${displayHour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${ampm}`;
+    } else {
+      // Convert 12-hour to 24-hour
+      const match = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (match) {
+        let [_, hourStr, minuteStr, ampm] = match;
+        let hour = parseInt(hourStr);
+        if (ampm.toUpperCase() === 'PM' && hour !== 12) hour += 12;
+        if (ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
+        return `${hour.toString().padStart(2, '0')}:${minuteStr}`;
+      }
+      return time; // Return as-is if no conversion possible
+    }
+  };
+
+  // Function to update time format display when timeFormat changes
+  const updateTimeFormatDisplay = (newFormat: string) => {
+    // Don't actually change the stored times, just trigger a re-render
+    // The inputs will now display the formatted version automatically
+    setHasWorkingHoursChanges(true);
+  };
+
+  // Function to validate and format time input
+  const validateTimeInput = (input: string, format: string): string => {
+    if (format === "12") {
+      // Validate 12-hour format (e.g., "9:00 AM", "5:30 PM")
+      const match = input.match(/^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)$/);
+      if (match) {
+        const [_, hour, minute, ampm] = match;
+        const hourNum = parseInt(hour);
+        if (hourNum >= 1 && hourNum <= 12 && parseInt(minute) >= 0 && parseInt(minute) <= 59) {
+          return `${hourNum}:${minute} ${ampm.toUpperCase()}`;
+        }
+      }
+      return input; // Return as-is if invalid
+    } else {
+      // Validate 24-hour format (e.g., "09:00", "17:30")
+      const match = input.match(/^(\d{1,2}):(\d{2})$/);
+      if (match) {
+        const [_, hour, minute] = match;
+        const hourNum = parseInt(hour);
+        if (hourNum >= 0 && hourNum <= 23 && parseInt(minute) >= 0 && parseInt(minute) <= 59) {
+          return `${hourNum.toString().padStart(2, '0')}:${minute}`;
+        }
+      }
+      return input; // Return as-is if invalid
+    }
+  };
+
   // Profile edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
   
 
   const [isEditing, setIsEditing] = useState(false);
@@ -211,25 +241,19 @@ export default function SettingsClient() {
     name: "",
     email: "",
     phone: "",
-    company: "",
-    country: "",
-    address: "",
-    city: "",
-    state: "",
-    zipCode: "",
   });
   
   const [originalProfileData, setOriginalProfileData] = useState({
     name: "",
     email: "",
     phone: "",
-    company: "",
-    country: "",
-    address: "",
-    city: "",
-    state: "",
-    zipCode: "",
   });
+
+  // Profile change tracking state
+  const [hasProfileChanges, setHasProfileChanges] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState("");
 
   // Fetch user profile data when component loads
   useEffect(() => {
@@ -242,12 +266,6 @@ export default function SettingsClient() {
             name: userData.name || "",
             email: userData.email || "",
             phone: userData.phone || "",
-            company: userData.company || "",
-            country: userData.country || "",
-            address: userData.address || "",
-            city: userData.city || "",
-            state: userData.state || "",
-            zipCode: userData.zipCode || "",
           };
           setProfileData(profileDataWithDefaults);
           setOriginalProfileData(profileDataWithDefaults);
@@ -259,12 +277,6 @@ export default function SettingsClient() {
           name: "",
           email: "",
           phone: "",
-          company: "",
-          country: "",
-          address: "",
-          city: "",
-          state: "",
-          zipCode: "",
         };
         setProfileData(defaultData);
         setOriginalProfileData(defaultData);
@@ -368,6 +380,10 @@ export default function SettingsClient() {
           // Set double booking data
           setDoubleBookingData({ allowDoubleBooking: business?.allowDoubleBooking ?? true });
           setOriginalDoubleBookingData({ allowDoubleBooking: business?.allowDoubleBooking ?? true });
+
+          // Set time format data
+          setTimeFormatData({ timeFormat: business?.timeFormat ?? getDefaultTimeFormat() });
+          setOriginalTimeFormatData({ timeFormat: business?.timeFormat ?? getDefaultTimeFormat() });
         }
       } catch (error) {
         console.error('Error fetching business:', error);
@@ -392,7 +408,24 @@ export default function SettingsClient() {
   };
 
   const handleCategoryClick = (categoryId: string) => {
-    setSelectedCategory(categoryId);
+    if (categoryId === "sign-out") {
+      setShowSignOutModal(true);
+    } else {
+      setSelectedCategory(categoryId);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut({ 
+        callbackUrl: "/",
+        redirect: true 
+      });
+    } catch (error) {
+      console.error("Sign out error:", error);
+      // Fallback redirect
+      window.location.href = "/";
+    }
   };
   const isBrandDirty = () => JSON.stringify(brandData) !== JSON.stringify(originalBrandData);
 
@@ -463,12 +496,6 @@ export default function SettingsClient() {
         body: JSON.stringify({
           name: profileData.name,
           phone: profileData.phone,
-          company: profileData.company,
-          country: profileData.country,
-          address: profileData.address,
-          city: profileData.city,
-          state: profileData.state,
-          zipCode: profileData.zipCode,
         }),
       });
 
@@ -509,12 +536,6 @@ export default function SettingsClient() {
       name: profileData.name,
       email: profileData.email,
       phone: profileData.phone,
-      company: profileData.company,
-      country: profileData.country,
-      address: profileData.address,
-      city: profileData.city,
-      state: profileData.state,
-      zipCode: profileData.zipCode,
     };
     setOriginalProfileData(currentData);
     setIsEditing(true);
@@ -571,6 +592,7 @@ export default function SettingsClient() {
           openingHours: openingHours,
           slotSize: slotSizeData, // Include slot size configuration
           allowDoubleBooking: doubleBookingData.allowDoubleBooking, // Include double booking setting
+          timeFormat: timeFormatData.timeFormat, // Include time format setting
         })
       });
 
@@ -588,9 +610,11 @@ export default function SettingsClient() {
       setOriginalWorkingHoursData(workingHoursData);
       setOriginalSlotSizeData(slotSizeData);
       setOriginalDoubleBookingData(doubleBookingData);
+      setOriginalTimeFormatData(timeFormatData);
       setHasWorkingHoursChanges(false);
       setHasSlotSizeChanges(false);
       setHasDoubleBookingChanges(false);
+      setHasTimeFormatChanges(false);
       setWorkingHoursSaved(true);
       
       // Reload business data to ensure sync with public page
@@ -691,6 +715,40 @@ export default function SettingsClient() {
     }
   };
 
+  // Handle saving profile changes
+  const handleSaveProfile = async () => {
+    if (!hasProfileChanges) return;
+    
+    setIsSavingProfile(true);
+    setProfileError("");
+    
+    try {
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData),
+      });
+      
+      if (response.ok) {
+        setOriginalProfileData(profileData);
+        setHasProfileChanges(false);
+        setProfileSaved(true);
+        // Reset saved status after 3 seconds
+        setTimeout(() => setProfileSaved(false), 3000);
+      } else {
+        const errorData = await response.json();
+        setProfileError(errorData.error || 'Failed to save profile');
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setProfileError('An error occurred while saving your profile');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   return (
     <div className="flex h-full bg-white">
       {/* Middle Column - Settings Menu */}
@@ -714,38 +772,7 @@ export default function SettingsClient() {
           ))}
         </div>
 
-        {/* Manage Section */}
-        <div className="mb-4">
-          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">MANAGE</div>
-          <div className="space-y-0.5">
-            {manageCategories.map((category) => (
-              <div key={category.id}>
-                <button
-                  onClick={() => category.hasDropdown ? toggleManageCategory(category.id) : handleCategoryClick(category.id)}
-                  className={`w-full flex items-center justify-between py-1.5 px-2 rounded text-xs transition-colors ${
-                    selectedCategory === category.id
-                      ? "bg-gray-200 text-gray-900"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  <span>{category.name}</span>
-                  {category.hasDropdown && (
-                    expandedManageCategories.includes(category.id) ? (
-                      <ChevronDownIcon className="w-3 h-3" />
-                    ) : (
-                      <ChevronRightIcon className="w-3 h-3" />
-                    )
-                  )}
-                </button>
-                {category.hasDropdown && expandedManageCategories.includes(category.id) && (
-                  <div className="ml-3 mt-0.5 space-y-0.5">
-                    <div className="py-0.5 px-2 text-xs text-gray-500">Sub-options coming soon</div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+
 
         {/* More Section */}
         <div>
@@ -755,13 +782,18 @@ export default function SettingsClient() {
               <button
                 key={category.id}
                 onClick={() => handleCategoryClick(category.id)}
-                className={`w-full text-left py-1.5 px-2 rounded text-xs transition-colors ${
+                className={`w-full flex items-center space-x-2 py-1.5 px-2 rounded text-xs transition-colors group ${
                   selectedCategory === category.id
                     ? "bg-gray-200 text-gray-900"
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                {category.name}
+                {category.id === "sign-out" && (
+                  <svg className="w-3 h-3 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                )}
+                <span>{category.name}</span>
               </button>
             ))}
           </div>
@@ -769,16 +801,8 @@ export default function SettingsClient() {
       </div>
 
       {/* Right Column - Content Area */}
-      <div className="flex-1 p-4 pl-8 relative">
-        {/* Edit Profile Button - Top Right Corner */}
-        {selectedCategory === "profile" && (
-          <button
-            onClick={handleEditClick}
-            className="absolute top-4 right-4 px-3 py-1.5 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-xs font-medium z-10"
-          >
-            Edit Profile
-          </button>
-        )}
+      <div className="flex-1 p-4 pl-8 relative overflow-y-auto">
+        {/* Profile section now has full form, no need for edit button */}
         
         {selectedCategory === "profile" && (
           <div className="max-w-xl">
@@ -799,93 +823,87 @@ export default function SettingsClient() {
                   </div>
                 </div>
 
-            {/* Navigation Tabs */}
-            <div className="border-b border-gray-200 mb-4">
-              <nav className="flex space-x-6">
-                <button className="py-1.5 px-1 border-b-2 border-gray-900 text-xs font-medium text-gray-900">
-                  About
-                </button>
-              </nav>
-            </div>
+                {/* Profile Form */}
+                <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
+                  {/* Name */}
+                  <div>
+                    <label htmlFor="profile-name" className="block text-xs text-gray-700 mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      id="profile-name"
+                      value={profileData.name}
+                      onChange={(e) => {
+                        setProfileData(prev => ({ ...prev, name: e.target.value }));
+                        setHasProfileChanges(true);
+                      }}
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                      placeholder="Enter your full name"
+                    />
+                  </div>
 
-                         {/* Profile Information - Sleek Style */}
-             <div className="space-y-4">
-               {/* Phone */}
-               <div className="flex items-center space-x-3 text-xs">
-                 <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                 </svg>
-                 {profileData.phone && profileData.phone.trim() !== "" ? (
-                   <span className="text-gray-900">{profileData.phone}</span>
-                 ) : (
-                   <span 
-                     onClick={handleEditClick}
-                     className="text-gray-600 underline cursor-pointer hover:text-gray-800"
-                   >
-                     Add phone
-                   </span>
-                 )}
-               </div>
-               
-               {/* Email */}
-               <div className="flex items-center space-x-3 text-xs">
-                 <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                 </svg>
-                 {profileData.email && profileData.email.trim() !== "" ? (
-                   <span className="text-gray-900">{profileData.email}</span>
-                 ) : (
-                   <span 
-                     onClick={handleEditClick}
-                     className="text-gray-600 underline cursor-pointer hover:text-gray-800"
-                   >
-                     Add email
-                   </span>
-                 )}
-               </div>
-               
-               {/* Company */}
-               <div className="flex items-center space-x-3 text-xs">
-                 <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                 </svg>
-                 {profileData.company && profileData.company.trim() !== "" ? (
-                   <span className="text-gray-900">{profileData.company}</span>
-                 ) : (
-                   <span 
-                     onClick={handleEditClick}
-                     className="text-gray-600 underline cursor-pointer hover:text-gray-800"
-                   >
-                     Add company
-                   </span>
-                 )}
-               </div>
-               
-               {/* Address */}
-               <div className="flex items-center space-x-3 text-xs">
-                 <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                 </svg>
-                 {(profileData.address && profileData.address.trim() !== "") || 
-                  (profileData.city && profileData.city.trim() !== "") || 
-                  (profileData.zipCode && profileData.zipCode.trim() !== "") ? (
-                   <span className="text-gray-900">
-                     {[profileData.address, profileData.city, profileData.zipCode].filter(Boolean).join(", ")}
-                   </span>
-                 ) : (
-                   <span 
-                     onClick={handleEditClick}
-                     className="text-gray-600 underline cursor-pointer hover:text-gray-800"
-                   >
-                     Add address
-                   </span>
-                 )}
-               </div>
-            </div>
-            </>
-          )}
-        </div>
+                  {/* Email */}
+                  <div>
+                    <label htmlFor="profile-email" className="block text-xs text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      id="profile-email"
+                      value={profileData.email}
+                      disabled
+                      className="w-full px-3 py-1.5 border border-gray-200 rounded-md bg-gray-50 text-xs text-gray-500 cursor-not-allowed"
+                      placeholder="Email cannot be changed"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed for security reasons</p>
+                  </div>
+
+                  {/* Phone */}
+                  <div>
+                    <label htmlFor="profile-phone" className="block text-xs text-gray-700 mb-1">Phone</label>
+                    <PhoneInput
+                      international
+                      defaultCountry="DK"
+                      value={profileData.phone}
+                      onChange={(value) => {
+                        setProfileData(prev => ({ ...prev, phone: value || "" }));
+                        setHasProfileChanges(true);
+                      }}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="pt-4">
+                    {/* Error Display */}
+                    {profileError && (
+                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center">
+                          <svg className="w-3 h-3 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          <p className="text-xs text-red-700">{profileError}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <button
+                      type="button"
+                      disabled={!hasProfileChanges || isSavingProfile}
+                      onClick={handleSaveProfile}
+                      className={`w-1/3 px-4 py-2 rounded-md transition-colors text-sm font-medium ${
+                        !hasProfileChanges || isSavingProfile
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          : 'bg-black text-white hover:bg-gray-800'
+                      }`}
+                    >
+                      {isSavingProfile ? 'Saving...' : hasProfileChanges ? 'Save Changes' : (profileSaved ? 'Saved' : 'Save Changes')}
+                    </button>
+                    {!hasProfileChanges && profileSaved && (
+                      <span className="text-xs text-green-600 mt-2 block text-center">Profile updated successfully</span>
+                    )}
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
         )}
 
         {selectedCategory !== "profile" && (
@@ -957,6 +975,8 @@ export default function SettingsClient() {
                   Appearance
                 </button>
 
+
+
               </nav>
             </div>
 
@@ -993,15 +1013,24 @@ export default function SettingsClient() {
                         </div>
 
                         <div>
-                          <label htmlFor="brand-url" className="block text-xs text-gray-700 mb-1">Your booking page url</label>
-                          <input
-                            id="brand-url"
-                            type="text"
-                            value={brandData.bookingUrl}
-                            onChange={(e) => setBrandData({ ...brandData, bookingUrl: e.target.value })}
-                            className="w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
-                            placeholder="e.g. /b/your-brand"
-                          />
+                          <label htmlFor="brand-url" className="block text-xs text-gray-700 mb-1">Your booking page URL</label>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs text-gray-500">zenoscheduler.com/b/</span>
+                            <input
+                              id="brand-url"
+                              type="text"
+                              value={brandData.bookingUrl.replace(/^\/b\//, '').replace(/^https?:\/\/[^\/]+\/b\//, '')}
+                              onChange={(e) => {
+                                const slug = e.target.value.replace(/[^a-z0-9-]/g, '').toLowerCase();
+                                setBrandData({ ...brandData, bookingUrl: slug });
+                              }}
+                              className="flex-1 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                              placeholder="your-brand-name"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Your full URL will be: <span className="font-mono">zenoscheduler.com/b/{brandData.bookingUrl.replace(/^\/b\//, '').replace(/^https?:\/\/[^\/]+\/b\//, '')}</span>
+                          </p>
                         </div>
 
                         <div>
@@ -1064,7 +1093,7 @@ export default function SettingsClient() {
                                   credentials: 'include',
                                   body: JSON.stringify({
                                     name: brandData.name,
-                                    slug: brandData.bookingUrl,
+                                    slug: brandData.bookingUrl.replace(/^\/b\//, '').replace(/^https?:\/\/[^\/]+\/b\//, ''),
                                     industry: brandData.industry,
                                     about: brandData.about,
                                     tagline: brandData.tagline,
@@ -1212,6 +1241,42 @@ export default function SettingsClient() {
                            <p className="text-sm text-gray-500 max-w-md mx-auto">
                              We're working on some amazing appearance customization features. 
                              You'll be able to customize your brand colors, themes, and styling options soon.
+                           </p>
+                         </div>
+                       </div>
+                     )}
+
+                     {/* Billing Tab */}
+                     {selectedBrandTab === 'billing' && (
+                       <div className="space-y-4">
+                         <div className="text-center py-8">
+                           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                             <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                             </svg>
+                           </div>
+                           <h3 className="text-lg font-medium text-gray-900 mb-2">Billing</h3>
+                           <p className="text-sm text-gray-500 max-w-md mx-auto">
+                             Manage your subscription, billing information, and payment methods. 
+                             View invoices and update your billing preferences.
+                           </p>
+                         </div>
+                       </div>
+                     )}
+
+                     {/* Security Tab */}
+                     {selectedBrandTab === 'security' && (
+                       <div className="space-y-4">
+                         <div className="text-center py-8">
+                           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                             <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                             </svg>
+                           </div>
+                           <h3 className="text-lg font-medium text-gray-900 mb-2">Security</h3>
+                           <p className="text-sm text-gray-500 max-w-md mx-auto">
+                             Manage your account security settings, two-factor authentication, 
+                             and review recent login activity.
                            </p>
                          </div>
                        </div>
@@ -1634,28 +1699,63 @@ export default function SettingsClient() {
                               {day.isEnabled ? (
                                 <div className="flex items-center space-x-3">
                                   <input
-                                    type="time"
-                                    value={day.openTime}
+                                    type="text"
+                                    value={formatTime(day.openTime, timeFormatData.timeFormat)}
                                     onChange={(e) => {
+                                      // Parse the formatted time back to 24-hour format for storage
+                                      const newTime = validateTimeInput(e.target.value, timeFormatData.timeFormat);
+                                      let parsedTime = newTime;
+                                      
+                                      if (timeFormatData.timeFormat === "12") {
+                                        // Convert 12-hour format back to 24-hour
+                                        const match = newTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                                        if (match) {
+                                          let [_, hourStr, minuteStr, ampm] = match;
+                                          let hour = parseInt(hourStr);
+                                          if (ampm.toUpperCase() === 'PM' && hour !== 12) hour += 12;
+                                          if (ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
+                                          parsedTime = `${hour.toString().padStart(2, '0')}:${minuteStr}`;
+                                        }
+                                      }
+                                      
                                       const updated = [...workingHoursData];
-                                      updated[index].openTime = e.target.value;
+                                      updated[index].openTime = parsedTime;
                                       setWorkingHoursData(updated);
                                       setHasWorkingHoursChanges(true);
                                     }}
                                     className="px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                                    placeholder={timeFormatData.timeFormat === "12" ? "9:00 AM" : "09:00"}
                                   />
                                   <span className="text-gray-400 text-xs">-</span>
                                   <input
-                                    type="time"
-                                    value={day.closeTime}
+                                    type="text"
+                                    value={formatTime(day.closeTime, timeFormatData.timeFormat)}
                                     onChange={(e) => {
+                                      // Parse the formatted time back to 24-hour format for storage
+                                      const newTime = validateTimeInput(e.target.value, timeFormatData.timeFormat);
+                                      let parsedTime = newTime;
+                                      
+                                      if (timeFormatData.timeFormat === "12") {
+                                        // Convert 12-hour format back to 24-hour
+                                        const match = newTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                                        if (match) {
+                                          let [_, hourStr, minuteStr, ampm] = match;
+                                          let hour = parseInt(hourStr);
+                                          if (ampm.toUpperCase() === 'PM' && hour !== 12) hour += 12;
+                                          if (ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
+                                          parsedTime = `${hour.toString().padStart(2, '0')}:${minuteStr}`;
+                                        }
+                                      }
+                                      
                                       const updated = [...workingHoursData];
-                                      updated[index].closeTime = e.target.value;
+                                      updated[index].closeTime = parsedTime;
                                       setWorkingHoursData(updated);
                                       setHasWorkingHoursChanges(true);
                                     }}
                                     className="px-1.5 py-0.5 border border-gray-300 rounded text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent"
+                                    placeholder={timeFormatData.timeFormat === "12" ? "5:00 PM" : "17:00"}
                                   />
+
                                 </div>
                               ) : (
                                 <span className="text-gray-500 text-xs font-medium">Closed</span>
@@ -1739,6 +1839,53 @@ export default function SettingsClient() {
                           </div>
                           <p className="text-xs text-gray-500 mt-2">
                             When disabled, customers cannot book time slots that overlap with existing bookings. Business owners can always create overlapping bookings from the dashboard.
+                          </p>
+                        </div>
+
+                        {/* Time Format Setting */}
+                        <div className="mt-8 pt-8 border-t border-gray-200">
+                          <h3 className="text-sm font-medium text-gray-900 mb-4">Time format</h3>
+                          <p className="text-xs text-gray-600 mb-4">
+                            Choose how time is displayed throughout the application
+                          </p>
+                          <div className="flex items-center space-x-4">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="timeFormat"
+                                value="24"
+                                checked={timeFormatData.timeFormat === "24"}
+                                onChange={(e) => {
+                                  const newFormat = e.target.value;
+                                  setTimeFormatData(prev => ({ ...prev, timeFormat: newFormat }));
+                                  updateTimeFormatDisplay(newFormat);
+                                  setHasTimeFormatChanges(true);
+                                  setHasWorkingHoursChanges(true);
+                                }}
+                                className="w-4 h-4 text-black border-gray-300 focus:ring-black"
+                              />
+                              <span className="text-xs text-gray-900">24-hour format (14:30)</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="timeFormat"
+                                value="12"
+                                checked={timeFormatData.timeFormat === "12"}
+                                onChange={(e) => {
+                                  const newFormat = e.target.value;
+                                  setTimeFormatData(prev => ({ ...prev, timeFormat: newFormat }));
+                                  updateTimeFormatDisplay(newFormat);
+                                  setHasTimeFormatChanges(true);
+                                  setHasWorkingHoursChanges(true);
+                                }}
+                                className="w-4 h-4 text-black border-gray-300 focus:ring-black"
+                              />
+                              <span className="text-xs text-gray-900">12-hour format (2:30 PM)</span>
+                            </label>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            This setting affects how time is displayed in business hours, calendar, booking forms, and throughout the application.
                           </p>
                         </div>
 
@@ -2307,6 +2454,35 @@ export default function SettingsClient() {
                   className="px-2 py-1 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-xs font-medium"
                 >
                   Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sign Out Confirmation Modal */}
+      {showSignOutModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Sure you want to sign out?</h3>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowSignOutModal(false)}
+                  className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSignOutModal(false);
+                    handleSignOut();
+                  }}
+                  className="px-3 py-1.5 bg-black text-white text-sm rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  Yes, sign out
                 </button>
               </div>
             </div>

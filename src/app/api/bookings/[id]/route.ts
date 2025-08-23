@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/nextauth";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 // PUT - Update a booking
 export async function PUT(
@@ -30,7 +28,7 @@ export async function PUT(
 
     const existingBooking = await prisma.booking.findFirst({
       where: { id: params.id, service: { businessId: business.id } },
-      include: { service: true, user: true, teamMember: true }
+      include: { service: true, customer: true, teamMember: true }
     });
 
     if (!existingBooking) {
@@ -42,7 +40,7 @@ export async function PUT(
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
 
-    const customer = await prisma.user.findUnique({ where: { id: customerId } });
+    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
@@ -80,13 +78,15 @@ export async function PUT(
     const updatedBooking = await prisma.booking.update({
       where: { id: id },
       data: { 
-        userId: customerId, 
+        customerId: customerId, // ✅ Now using customerId instead of userId
         serviceId: serviceId, 
         teamMemberId: providerId || null, 
         date: appointmentDate, 
-        note: notes || null 
+        startTime: appointmentDate, // ✅ Required field
+        endTime: new Date(appointmentDate.getTime() + service.duration * 60 * 1000), // ✅ Required field
+        customerNote: notes || null // ✅ Now using customerNote instead of note
       },
-      include: { user: true, service: true, teamMember: true }
+      include: { customer: true, service: true, teamMember: true } // ✅ Now using customer instead of user
     });
 
     return NextResponse.json(updatedBooking);

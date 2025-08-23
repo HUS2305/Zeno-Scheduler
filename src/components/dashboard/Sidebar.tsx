@@ -90,6 +90,10 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [displayName, setDisplayName] = useState(session?.user?.name || session?.user?.email || "User");
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
 
   useEffect(() => {
     // Update display name when session changes
@@ -110,6 +114,18 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
       window.removeEventListener('profileUpdated', handleProfileUpdate as EventListener);
     };
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showProfileDropdown && !(event.target as Element).closest('.profile-dropdown-container')) {
+        setShowProfileDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProfileDropdown]);
 
   const handleSignOut = async () => {
     try {
@@ -150,17 +166,27 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
   };
 
   return (
-    <div className="w-56 bg-white border-r border-gray-200 flex flex-col">
+    <div className={`${isCollapsed ? 'w-16' : 'w-56'} bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out`}>
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center">
-            <span className="text-white text-sm font-medium">Z</span>
-          </div>
-          <div>
-            <h1 className="text-base font-semibold text-gray-900">Zeno Scheduler</h1>
-            <p className="text-xs text-gray-500">{business.name}</p>
-          </div>
+        <div className="flex items-center justify-between">
+          {!isCollapsed && (
+            <div>
+              <Link href="/dashboard" className="text-center hover:opacity-80 transition-opacity cursor-pointer">
+                <h1 className="text-2xl font-bold text-gray-900 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Zeno</h1>
+                <h2 className="text-sm font-normal text-gray-700 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Scheduler</h2>
+              </Link>
+            </div>
+          )}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="text-gray-600 hover:text-gray-900 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isCollapsed ? "M13 5l7 7-7 7M5 5l7 7-7 7" : "M11 19l-7-7 7-7m8 14l-7-7 7-7"} />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -173,14 +199,15 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center space-x-2 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-2'} px-2 py-1.5 rounded-lg text-sm transition-colors ${
                 isActive
                   ? "bg-white text-black border border-black"
                   : "text-gray-700 hover:bg-gray-100"
               }`}
+              title={isCollapsed ? item.name : undefined}
             >
               {item.icon()}
-              <span>{item.name}</span>
+              {!isCollapsed && <span>{item.name}</span>}
             </Link>
           );
         })}
@@ -189,7 +216,7 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
       {/* Bottom Section */}
       <div className="p-3 border-t border-gray-200 space-y-3">
         {/* Share Booking Page */}
-        {business.slug && (
+        {business.slug && !isCollapsed && (
           <div className="bg-blue-50 rounded-lg p-2">
             <div className="flex items-center space-x-2 text-xs text-blue-700">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,50 +227,152 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
           </div>
         )}
 
-        {/* Pro Upgrade */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-2">
-          <h3 className="text-xs font-medium text-green-800 mb-1">
-            Unlock next-level booking
-          </h3>
-          <button className="w-full bg-green-600 text-white text-xs py-1.5 px-2 rounded-md hover:bg-green-700 transition-colors">
-            Get Pro
-          </button>
-          <p className="text-xs text-green-600 mt-1">Learn more</p>
-        </div>
+
 
         {/* Help & Support */}
-        <div className="flex items-center space-x-2 text-xs text-gray-600 hover:text-gray-900 cursor-pointer">
+        <button
+          onClick={() => setShowHelpModal(true)}
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-2'} text-xs text-gray-600 hover:text-gray-900 cursor-pointer w-full ${isCollapsed ? '' : 'text-left'}`}
+          title={isCollapsed ? "Help & Support" : undefined}
+        >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span>Help & Support</span>
-        </div>
+          {!isCollapsed && <span>Help & Support</span>}
+        </button>
 
         {/* User Profile */}
-        <div className="flex items-center space-x-2 pt-2 border-t border-gray-200">
-          <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
-            <span className="text-xs font-medium text-gray-700">
-              {displayName[0] || "U"}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-900 truncate">
-              {displayName}
-            </p>
-            <p className="text-xs text-gray-500">
-              {teamMember ? getRoleDisplayName(teamMember.role) : 'Business Owner'}
-            </p>
-          </div>
+        <div className="relative profile-dropdown-container">
           <button
-            onClick={handleSignOut}
-            className="text-gray-400 hover:text-gray-600"
+            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+            className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'space-x-2'} pt-2 border-t border-gray-200 w-full text-left hover:bg-gray-50 rounded-lg p-2 transition-colors`}
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+            <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
+              <span className="text-xs font-medium text-gray-700">
+                {displayName[0] || "U"}
+              </span>
+            </div>
+            {!isCollapsed && (
+              <>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-gray-900 truncate">
+                    {displayName}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {teamMember ? getRoleDisplayName(teamMember.role) : 'Business Owner'}
+                  </p>
+                </div>
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </>
+            )}
           </button>
+
+          {/* Profile Dropdown */}
+          {showProfileDropdown && (
+            <div className={`absolute bottom-full left-0 ${isCollapsed ? 'w-40' : 'w-full'} bg-white border border-gray-200 rounded-lg shadow-lg mb-2 z-50`}>
+              <div className="py-1">
+                <Link
+                  href="/dashboard/settings"
+                  onClick={() => setShowProfileDropdown(false)}
+                  className="flex items-center px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <svg className="w-3 h-3 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Your Profile
+                </Link>
+                <button
+                  onClick={() => {
+                    setShowProfileDropdown(false);
+                    setShowSignOutModal(true);
+                  }}
+                  className="flex items-center w-full px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors group"
+                >
+                  <svg className="w-3 h-3 mr-2 text-gray-500 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Help & Support Modal */}
+      {showHelpModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Help & Support</h3>
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-gray-600 text-sm mb-2">
+                  Need help with your Zeno Scheduler? Our support team is here to assist you.
+                </p>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-sm text-gray-700">
+                    <strong>Email:</strong> support@zenoscheduler.com
+                  </p>
+                  <p className="text-sm text-gray-700 mt-1">
+                    <strong>Response Time:</strong> Within 24 hours
+                  </p>
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowHelpModal(false)}
+                  className="w-full bg-black text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sign Out Confirmation Modal */}
+      {showSignOutModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Sure you want to log out?</h3>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowSignOutModal(false)}
+                  className="px-3 py-1.5 text-xs text-gray-700 hover:text-gray-900 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSignOutModal(false);
+                    handleSignOut();
+                  }}
+                  className="px-3 py-1.5 bg-black text-white text-xs rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  Yes, log out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import AppointmentModal from "./AppointmentModal";
 import AppointmentEditModal from "./AppointmentEditModal";
+import { formatTimeForDisplay } from "@/lib/time-utils";
 
 // Color theme options
 const colorOptions = [
@@ -34,7 +35,7 @@ interface Booking {
     price?: number;
     colorTheme?: string;
   };
-  user: {
+  customer: {
     id: string;
     name: string;
     email?: string;
@@ -44,7 +45,7 @@ interface Booking {
     id: string;
     name: string;
   };
-  note?: string;
+  customerNote?: string;
 }
 
 interface InteractiveCalendarProps {
@@ -56,6 +57,7 @@ interface InteractiveCalendarProps {
   onWeekChange?: (startDate: Date, endDate: Date) => void;
   onAppointmentCreated?: () => void;
   userProfileName?: string;
+  timeFormat?: string;
 }
 
 export default function InteractiveCalendar({
@@ -67,6 +69,7 @@ export default function InteractiveCalendar({
   onWeekChange,
   onAppointmentCreated,
   userProfileName,
+  timeFormat = "24",
 }: InteractiveCalendarProps) {
   const [selectedSlot, setSelectedSlot] = useState<{ date: Date; booking?: Booking } | null>(null);
   const [hoveredSlot, setHoveredSlot] = useState<{ date: Date; hour: number; minute: number } | null>(null);
@@ -211,7 +214,7 @@ export default function InteractiveCalendar({
             </svg>
           </button>
           <span className="text-sm font-medium text-gray-700 min-w-[140px] text-center">
-            {startOfWeek.toLocaleDateString('en-US', { month: 'short' })} - {endOfWeek.toLocaleDateString('en-US', { month: 'short' })} 2025
+            {startOfWeek.toLocaleDateString('en-US', { month: 'short' })} - {endOfWeek.toLocaleDateString('en-US', { month: 'short' })} {startOfWeek.getFullYear()}
           </span>
           <button 
             onClick={handleNextWeek}
@@ -278,7 +281,7 @@ export default function InteractiveCalendar({
                 const totalMinutes = i * 15;
                 const hour = Math.floor(totalMinutes / 60); // Start from 12 AM (0)
                 const minute = totalMinutes % 60;
-                const timeString = hour === 0 ? '12AM' : hour === 12 ? '12PM' : hour > 12 ? `${hour - 12}PM` : `${hour}AM`;
+                const timeString = formatTimeForDisplay(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`, timeFormat);
                 
                 return (
                   <div key={i} className={`h-6 flex items-start justify-end pr-2 absolute right-0 ${
@@ -350,7 +353,7 @@ export default function InteractiveCalendar({
                      >
                        {isHovered && isClickable && !hasBooking && (
                          <div className="absolute inset-0 flex items-center justify-start px-2 text-xs text-black pointer-events-none">
-                           {`${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:${minute.toString().padStart(2, '0')}${hour >= 12 ? 'PM' : 'AM'}`}
+                           {formatTimeForDisplay(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`, timeFormat)}
                          </div>
                        )}
                      </div>
@@ -471,7 +474,7 @@ export default function InteractiveCalendar({
                                {booking.service.name}
                              </div>
                              <div className="text-xs truncate" style={{ color: colors.main }}>
-                               {booking.user.name}
+                               {booking.customer.name}
                              </div>
                            </div>
                          </div>
@@ -507,6 +510,7 @@ export default function InteractiveCalendar({
           selectedDate={selectedDateTime?.date || new Date()}
           selectedTime={selectedDateTime?.time || "09:00"}
           onAppointmentCreated={handleAppointmentCreated}
+          timeFormat={timeFormat}
         />
       )}
 
@@ -520,6 +524,7 @@ export default function InteractiveCalendar({
           }}
           booking={selectedBooking}
           onAppointmentUpdated={handleAppointmentUpdated}
+          timeFormat={timeFormat}
         />
       )}
     </div>

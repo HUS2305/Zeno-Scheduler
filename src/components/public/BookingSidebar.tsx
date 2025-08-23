@@ -27,7 +27,9 @@ interface Business {
   state?: string | null;
   zipCode?: string | null;
   brandColor?: string | null;
+  teamMembers?: Array<{ id: string; name: string; email: string | null }>;
   openingHours: OpeningHour[];
+  timeFormat?: string;
 }
 
 interface BookingSidebarProps {
@@ -61,9 +63,19 @@ export default function BookingSidebar({ business, theme, brandColor }: BookingS
         theme === 'dark' ? 'text-white' : 'text-gray-900'
       }`}>{business.name}</h2>
 
-      {/* Book Button */}
-      <button 
-        onClick={() => window.location.href = `/b/${business.slug || business.id}/book`}
+             {/* Book Button */}
+       <button 
+         onClick={() => {
+           console.log('BookingSidebar Book button clicked');
+           console.log('business.slug:', business.slug);
+           console.log('business.id:', business.id);
+           console.log('business.teamMembers:', business.teamMembers);
+           
+                       // Always start with service selection - navigate to the main booking page
+            const url = `/b/${business.slug || business.id}/book`;
+            console.log('Navigating to service selection:', url);
+            window.location.href = url;
+         }}
         className="w-full font-semibold py-2 px-4 rounded-lg transition-colors mb-4 text-white hover:opacity-90"
         style={{ backgroundColor: business.brandColor || '#000000' }}
       >
@@ -84,7 +96,11 @@ export default function BookingSidebar({ business, theme, brandColor }: BookingS
           )}
         </div>
         {expandedSections.businessHours && (
-          <BusinessHours openingHours={business.openingHours} theme={theme} brandColor={business.brandColor || undefined} />
+          <BusinessHours 
+            openingHours={business.openingHours} 
+            theme={(theme as 'light' | 'dark') || 'light'} 
+            timeFormat={business.timeFormat || "24"}
+          />
         )}
       </div>
 

@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import { formatTimeForDisplay } from "@/lib/time-utils";
 
 interface DateTimePickerProps {
   selectedDate: Date;
   selectedTime: string;
   onDateChange: (date: Date) => void;
   onTimeChange: (time: string) => void;
-  className?: string;
+  timeFormat?: string;
 }
 
 export default function DateTimePicker({
@@ -15,7 +17,7 @@ export default function DateTimePicker({
   selectedTime,
   onDateChange,
   onTimeChange,
-  className = ""
+  timeFormat = "24",
 }: DateTimePickerProps) {
   const [showCalendar, setShowCalendar] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -30,7 +32,7 @@ export default function DateTimePicker({
         setShowCalendar(false);
       }
       // Close time picker when clicking outside
-      const target = event.target as Node;
+      const target = event.target as Element;
       if (!target.closest('.time-picker-container')) {
         setShowTimePicker(false);
       }
@@ -46,10 +48,7 @@ export default function DateTimePicker({
     for (let hour = 0; hour < 24; hour++) {
       for (let minute = 0; minute < 60; minute += 15) {
         const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        const displayTime = hour === 0 ? `12:${minute.toString().padStart(2, '0')} AM` :
-                           hour === 12 ? `12:${minute.toString().padStart(2, '0')} PM` :
-                           hour > 12 ? `${hour - 12}:${minute.toString().padStart(2, '0')} PM` :
-                           `${hour}:${minute.toString().padStart(2, '0')} AM`;
+        const displayTime = formatTimeForDisplay(timeString, timeFormat);
         times.push({ value: timeString, display: displayTime });
       }
     }
@@ -140,7 +139,7 @@ export default function DateTimePicker({
   };
 
   return (
-    <div className={`relative ${className}`}>
+    <div className="relative">
       {/* Date and Time Display */}
       <div className="flex items-center space-x-2">
         {/* Date Picker */}

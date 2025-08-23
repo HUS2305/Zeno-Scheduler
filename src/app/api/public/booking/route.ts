@@ -67,15 +67,19 @@ export async function POST(request: NextRequest) {
     // Check if customer already exists by email
     let customer = null;
     if (customerDetails.email) {
-      customer = await prisma.user.findFirst({
-        where: { email: customerDetails.email }
+      customer = await prisma.customer.findFirst({
+        where: { 
+          email: customerDetails.email,
+          businessId: business.id // ✅ Only check within this business
+        }
       });
     }
 
     // If customer doesn't exist, create a new one
     if (!customer) {
-      customer = await prisma.user.create({
+      customer = await prisma.customer.create({
         data: {
+          businessId: business.id, // ✅ REQUIRED - ensures business isolation
           name: customerDetails.name,
           email: customerDetails.email,
           phone: customerDetails.phone,
@@ -89,7 +93,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Update existing customer with new information
-      customer = await prisma.user.update({
+      customer = await prisma.customer.update({
         where: { id: customer.id },
         data: {
           name: customerDetails.name || customer.name,
@@ -146,14 +150,16 @@ export async function POST(request: NextRequest) {
     // Create the booking
     const booking = await prisma.booking.create({
       data: {
-        userId: customer.id,
+        customerId: customer.id,
         serviceId: serviceId,
         teamMemberId: (teamMemberId && teamMemberId !== "undefined" && teamMemberId !== "null") ? teamMemberId : null,
         date: appointmentDate,
-        note: customerDetails.comments || null
+        startTime: appointmentDate, // ✅ Required field
+        endTime: new Date(appointmentDate.getTime() + service.duration * 60 * 1000), // ✅ Required field
+        customerNote: customerDetails.comments || null // ✅ Now using customerNote instead of note
       },
       include: {
-        user: true,
+        customer: true,
         service: true,
         teamMember: true
       }

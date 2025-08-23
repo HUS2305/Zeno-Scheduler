@@ -5,6 +5,7 @@ import { ArrowLeftIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
+import { formatTimeForDisplay } from "@/lib/time-utils";
 
 interface TeamMember {
   id: string;
@@ -16,7 +17,6 @@ interface Service {
   id: string;
   name: string;
   duration: number;
-  price: number | null;
 }
 
 interface Business {
@@ -26,6 +26,7 @@ interface Business {
   teamMembers: TeamMember[];
   theme?: string | null;
   brandColor?: string | null;
+  timeFormat?: string;
 }
 
 interface DetailsPageClientProps {
@@ -69,11 +70,48 @@ export default function DetailsPageClient({
     const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
 
-  // Validation function to check if required fields are filled
+  // Enhanced validation function to check if required fields are filled with proper format
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    // Name validation - must not be empty
+    if (!formData.name.trim()) {
+      newErrors.name = "Name is required";
+    }
+    
+    // Phone validation - must not be empty and must contain numbers
+    if (!formData.phone || !formData.phone.trim()) {
+      newErrors.phone = "Phone number is required";
+    } else if (!/\d/.test(formData.phone)) {
+      newErrors.phone = "Phone number must contain numbers";
+    }
+    
+    // Email validation - must not be empty and must be valid email format
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    setErrors(newErrors);
+    const isValid = Object.keys(newErrors).length === 0;
+    return isValid;
+  };
+
+  // Enhanced form validation check
   const isFormValid = () => {
-    return formData.name.trim() !== '' && 
-           formData.email.trim() !== '' && 
-           formData.phone.trim() !== '';
+    // Check if required fields are filled
+    if (!formData.name.trim()) return false;
+    if (!formData.phone || !formData.phone.trim()) return false;
+    if (!formData.email.trim()) return false;
+    
+    // Check if phone contains numbers
+    if (!/\d/.test(formData.phone)) return false;
+    
+    // Check if email has valid format (@ and .)
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return false;
+    
+    return true;
   };
 
   const formatDuration = (minutes: number) => {
@@ -85,10 +123,7 @@ export default function DetailsPageClient({
     return `${mins} mins`;
   };
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return 'Free';
-    return `kr ${price}`;
-  };
+
 
   const formatDate = (dateString: string) => {
     // Parse date string and ensure it's treated as local time, not UTC
@@ -119,28 +154,30 @@ export default function DetailsPageClient({
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: "" }));
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
     
-    if (!formData.name.trim()) {
-      newErrors.name = "is required";
+    // Real-time validation feedback
+    let fieldError = "";
+    
+    if (field === "name") {
+      if (!value.trim()) {
+        fieldError = "Name is required";
+      }
+    } else if (field === "phone") {
+      if (!value || !value.trim()) {
+        fieldError = "Phone number is required";
+      } else if (!/\d/.test(value)) {
+        fieldError = "Phone number must contain numbers";
+      }
+    } else if (field === "email") {
+      if (!value.trim()) {
+        fieldError = "Email is required";
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        fieldError = "Please enter a valid email address";
+      }
     }
-    if (!formData.phone || !formData.phone.trim()) {
-      newErrors.phone = "is required";
-    }
-    if (!formData.email.trim()) {
-      newErrors.email = "is required";
-    }
-
-    setErrors(newErrors);
-    const isValid = Object.keys(newErrors).length === 0;
-    return isValid;
+    
+    // Update errors for this field
+    setErrors(prev => ({ ...prev, [field]: fieldError }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -240,7 +277,7 @@ export default function DetailsPageClient({
                   {/* Phone */}
                   <div>
                     <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                      Primary phone
+                      Primary phone *
                     </label>
                     <PhoneInput
                       international
@@ -261,7 +298,7 @@ export default function DetailsPageClient({
                   {/* Email */}
                   <div>
                     <label className={`block text-xs ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                      Primary email
+                      Primary email *
                     </label>
                     <input
                       type="email"
@@ -275,6 +312,7 @@ export default function DetailsPageClient({
                         errors.email ? "border-red-500" : ""
                       }`}
                       placeholder="Enter email address"
+                      required
                     />
                     {errors.email && (
                       <p className="text-red-500 text-xs mt-1">{errors.email}</p>
@@ -663,19 +701,26 @@ export default function DetailsPageClient({
                <button
                  type="submit"
                  disabled={isSubmitting || !isFormValid()}
-                 className={`w-full mt-4 py-2 px-3 rounded-lg font-medium transition-colors text-sm ${
+                 className={`w-full mt-4 py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm ${
                    isFormValid() 
-                     ? 'text-white hover:opacity-90' 
-                     : 'text-white bg-gray-400 cursor-not-allowed'
+                     ? 'text-white hover:opacity-90 hover:shadow-lg transform hover:-translate-y-0.5' 
+                     : 'text-gray-300 bg-gray-400 cursor-not-allowed'
                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                  style={{
                    backgroundColor: isFormValid() 
-                     ? '#000000' // Black background when form is valid
+                     ? (business.brandColor || '#000000') // Use business brand color when valid
                      : '#9CA3AF' // Gray background when form is invalid
                  }}
                >
-                 {isSubmitting ? "Creating Booking..." : "Confirm"}
+                 {isSubmitting ? "Creating Booking..." : "Confirm Booking"}
                </button>
+               
+               {/* Form validation status */}
+               {!isFormValid() && (
+                 <p className="text-xs text-gray-500 mt-2 text-center">
+                   Please fill out name, phone, and email correctly to continue
+                 </p>
+               )}
             </form>
           </div>
 
@@ -731,14 +776,11 @@ export default function DetailsPageClient({
                       <PencilIcon className={`h-3 w-3 ${business.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
                     </button>
                     <span className={`text-sm font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      {formatDate(selectedDate)} at {formatTime(selectedTime)}
+                      {formatDate(selectedDate)} at {formatTimeForDisplay(selectedTime, business.timeFormat || "24")}
                     </span>
                   </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Price</span>
-                  <span className={`text-sm font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatPrice(selectedService.price)}</span>
-                </div>
+
               </div>
             </div>
           </div>
@@ -753,7 +795,7 @@ export default function DetailsPageClient({
              <button
                onClick={() => {
                  setShowConfirmationModal(false);
-                 router.push(`/public`);
+                 router.push(`/b/${slug}`);
                }}
                className={`absolute top-3 right-3 p-1 rounded-full transition-colors ${
                  business.theme === 'dark' 
@@ -795,7 +837,7 @@ export default function DetailsPageClient({
                   </div>
                   <div className="flex justify-between">
                     <span className={business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Time:</span>
-                    <span className={`font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatTime(selectedTime)}</span>
+                    <span className={`font-medium ${business.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatTimeForDisplay(selectedTime, business.timeFormat || "24")}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className={business.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Provider:</span>
@@ -808,7 +850,7 @@ export default function DetailsPageClient({
                  <button
                    onClick={() => {
                      setShowConfirmationModal(false);
-                     router.push(`/public`);
+                     router.push(`/b/${slug}`);
                    }}
                    className="px-4 py-2 text-white rounded-md hover:opacity-90 transition-colors text-sm font-medium"
                    style={{

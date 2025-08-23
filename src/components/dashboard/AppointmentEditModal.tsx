@@ -54,7 +54,7 @@ interface Booking {
     price?: number;
     colorTheme?: string;
   };
-  user: {
+  customer: {
     id: string;
     name: string;
     email?: string;
@@ -64,7 +64,7 @@ interface Booking {
     id: string;
     name: string;
   };
-  note?: string;
+  customerNote?: string;
 }
 
 interface AppointmentEditModalProps {
@@ -72,6 +72,7 @@ interface AppointmentEditModalProps {
   onClose: () => void;
   booking: Booking;
   onAppointmentUpdated: () => void;
+  timeFormat?: string;
 }
 
 export default function AppointmentEditModal({
@@ -79,12 +80,13 @@ export default function AppointmentEditModal({
   onClose,
   booking,
   onAppointmentUpdated,
+  timeFormat = "24",
 }: AppointmentEditModalProps) {
   
   const [services, setServices] = useState<Service[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedService, setSelectedService] = useState<string>(booking.service.id);
-  const [selectedCustomer, setSelectedCustomer] = useState<string>(booking.user.id);
+  const [selectedCustomer, setSelectedCustomer] = useState<string>(booking.customer.id);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -318,7 +320,7 @@ export default function AppointmentEditModal({
                 selectedTime={currentTime}
                 onDateChange={setCurrentDate}
                 onTimeChange={setCurrentTime}
-                className="flex-1"
+                timeFormat={timeFormat}
               />
             </div>
 

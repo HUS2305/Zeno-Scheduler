@@ -8,83 +8,25 @@ import BookingPageClient from "./BookingPageClient";
 export default async function BookingPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  let business: any = null;
-  // Resolve by slug via raw Mongo first to avoid Prisma validation on unknown fields
-  try {
-    let matchedId: string | null = null;
-    try {
-      const raw = await (prisma as any).$runCommandRaw({
-        find: 'Business',
-        filter: { slug },
-        limit: 1,
-      });
-      const first = raw?.cursor?.firstBatch?.[0];
-      if (first && first._id) {
-        matchedId = (first._id.$oid ?? first._id)?.toString?.() ?? null;
-      }
-    } catch {}
-
-    if (matchedId) {
-      business = (await prisma.business.findFirst({
-        where: { id: matchedId },
+  // Get the business by slug
+  let business = await prisma.business.findFirst({
+    where: { slug: slug },
+    include: {
+      services: {
+        where: { isHidden: false },
         include: {
-          services: {
-            where: { isHidden: false },
-            include: {
-              categoryLinks: { include: { category: true } },
-              teamLinks: { include: { teamMember: true } },
-            },
-            orderBy: { name: "asc" },
-          },
-          teamMembers: { orderBy: { name: "asc" } },
-          openingHours: { orderBy: { dayOfWeek: "asc" } },
-          categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
+          categoryLinks: { include: { category: true } },
+          teamLinks: { include: { teamMember: true } },
         },
-      })) as any;
-    }
+        orderBy: { name: "asc" },
+      },
+      teamMembers: { orderBy: { name: "asc" } },
+      openingHours: { orderBy: { dayOfWeek: "asc" } },
+      categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
+    },
+  });
 
-    // Fallback by id for backwards compatibility
-    if (!business) {
-      business = (await prisma.business.findFirst({
-        where: { id: slug },
-        include: {
-          services: {
-            where: { isHidden: false },
-            include: {
-              categoryLinks: { include: { category: true } },
-              teamLinks: { include: { teamMember: true } },
-            },
-            orderBy: { name: "asc" },
-          },
-          teamMembers: { orderBy: { name: "asc" } },
-          openingHours: { orderBy: { dayOfWeek: "asc" } },
-          categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
-        },
-      })) as any;
-    }
-
-    // Fallback to first business if none resolved
-    if (!business) {
-      business = (await prisma.business.findFirst({
-        include: {
-          services: {
-            where: { isHidden: false },
-            include: {
-              categoryLinks: { include: { category: true } },
-              teamLinks: { include: { teamMember: true } },
-            },
-            orderBy: { name: "asc" },
-          },
-          teamMembers: { orderBy: { name: "asc" } },
-          openingHours: { orderBy: { dayOfWeek: "asc" } },
-          categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
-        },
-      })) as any;
-    }
-  } catch (e) {
-    console.error('BookingPage business resolution failed:', e);
-  }
-
+  // If no business found by slug, show 404
   if (!business) {
     notFound();
   }

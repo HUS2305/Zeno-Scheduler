@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
+import { formatTimeForDisplay } from "@/lib/time-utils";
 
 interface TimeSlot {
   time: string;
@@ -19,7 +20,6 @@ interface Service {
   id: string;
   name: string;
   duration: number;
-  price: number | null;
 }
 
 interface Business {
@@ -39,6 +39,7 @@ interface Business {
     openTime: string;
     closeTime: string;
   }>;
+  timeFormat?: "12" | "24";
 }
 
 interface TimeSelectionPageClientProps {
@@ -49,6 +50,7 @@ interface TimeSelectionPageClientProps {
   teamMemberId?: string;
   selectedDate?: string;
   selectedTime?: string;
+  slug: string; // Add slug parameter
 }
 
 export default function TimeSelectionPageClient({ 
@@ -58,7 +60,8 @@ export default function TimeSelectionPageClient({
   serviceId,
   teamMemberId,
   selectedDate,
-  selectedTime
+  selectedTime,
+  slug
 }: TimeSelectionPageClientProps) {
   const router = useRouter();
   const [selectedDateState, setSelectedDate] = useState<Date>(() => {
@@ -143,10 +146,7 @@ export default function TimeSelectionPageClient({
     return `${mins} mins`;
   };
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return 'Free';
-    return `kr ${price}`;
-  };
+
 
   const formatTime = (timeString: string) => {
     const [hours, minutes] = timeString.split(':');
@@ -187,7 +187,7 @@ export default function TimeSelectionPageClient({
       console.log('Selected time:', selectedTimeState);
       
       const teamMemberParam = teamMemberId ? `&teamMemberId=${teamMemberId}` : '';
-      router.push(`/b/${business.id}/book/details?serviceId=${serviceId}${teamMemberParam}&date=${dateString}&time=${selectedTimeState}`);
+      router.push(`/b/${slug}/book/details?serviceId=${serviceId}${teamMemberParam}&date=${dateString}&time=${selectedTimeState}`);
     }
   };
 
@@ -475,7 +475,7 @@ export default function TimeSelectionPageClient({
                           backgroundColor: brandColor !== '#000000' ? brandColor : (theme === 'dark' ? '#374151' : '#000000')
                         } : {}}
                       >
-                        {slot.time}
+                        {formatTimeForDisplay(slot.time, business.timeFormat || "24")}
                         {!slot.available && (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <span className="text-sm text-gray-400">—</span>
@@ -554,16 +554,13 @@ export default function TimeSelectionPageClient({
                               if (selectedSlot && !selectedSlot.available) {
                                 return 'Selected time has passed';
                               }
-                              return `${formatDate(selectedDateState)} at ${formatTime(selectedTimeState)}`;
+                              return `${formatDate(selectedDateState)} at ${formatTimeForDisplay(selectedTimeState, business.timeFormat || "24")}`;
                             })()
                           : 'Not selected'
                       }
                     </span>
                   </div>
-                 <div className="flex justify-between items-center">
-                   <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Price</span>
-                   <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatPrice(selectedService.price)}</span>
-                 </div>
+
               </div>
 
                                              <button

@@ -1,28 +1,22 @@
 "use client";
 
-interface OpeningHour {
-  id: string;
-  dayOfWeek: number;
-  openTime: string;
-  closeTime: string;
-}
+import { formatTime } from "@/lib/time-utils";
 
 interface BusinessHoursProps {
-  openingHours: OpeningHour[];
-  theme: string;
-  brandColor?: string;
+  openingHours: Array<{
+    dayOfWeek: number;
+    openTime: string;
+    closeTime: string;
+  }>;
+  theme?: 'light' | 'dark';
+  timeFormat?: string;
 }
 
-export default function BusinessHours({ openingHours, theme, brandColor }: BusinessHoursProps) {
-  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-  const formatTime = (time: string) => {
-    // Convert 24-hour format to 12-hour format
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+export default function BusinessHours({ openingHours, theme = 'light', timeFormat = "24" }: BusinessHoursProps) {
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  
+  const formatTimeDisplay = (time: string) => {
+    return formatTime(time, timeFormat);
   };
 
   const getDayHours = (dayIndex: number) => {
@@ -41,21 +35,15 @@ export default function BusinessHours({ openingHours, theme, brandColor }: Busin
               isToday 
                 ? (theme === 'dark' ? 'text-white' : 'text-black')
                 : (theme === 'dark' ? 'text-gray-300' : 'text-gray-700')
-            }`}
-            style={{
-              color: isToday && theme !== 'dark' && brandColor && brandColor !== '#000000' ? brandColor : undefined,
-            }}>
+            }`}>
               {dayName}
             </span>
             <span className={`${isToday ? 'font-medium' : ''} ${
               isToday 
                 ? (theme === 'dark' ? 'text-white' : 'text-black')
                 : (theme === 'dark' ? 'text-gray-400' : 'text-gray-600')
-            }`}
-            style={{
-              color: isToday && theme !== 'dark' && brandColor && brandColor !== '#000000' ? brandColor : undefined,
-            }}>
-              {dayHours ? `${formatTime(dayHours.openTime)} - ${formatTime(dayHours.closeTime)}` : 'Closed'}
+            }`}>
+              {dayHours ? `${formatTimeDisplay(dayHours.openTime)} - ${formatTimeDisplay(dayHours.closeTime)}` : 'Closed'}
             </span>
           </div>
         );

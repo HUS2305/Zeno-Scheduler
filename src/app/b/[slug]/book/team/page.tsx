@@ -17,21 +17,10 @@ export default async function TeamSelectionPage({
   }
 
   const business = await prisma.business.findFirst({
-    where: { id: slug }, // The [slug] parameter is actually the business ID
-    select: {
-      id: true,
-      name: true,
-      profilePic: true,
-      theme: true,
-      brandColor: true,
+    where: { slug: slug },
+    include: {
       teamMembers: {
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          profilePic: true,
-        },
+        orderBy: { name: "asc" }
       },
     },
   });

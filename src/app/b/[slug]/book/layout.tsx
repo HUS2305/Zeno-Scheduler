@@ -48,122 +48,51 @@ export default async function BookingLayout({
 }) {
   const { slug } = await params;
   
-  let business;
   let servicesByCategory = {} as Record<string, any[]>;
+  let business: any = null;
 
   try {
-    // Try by slug via raw Mongo (avoids Prisma client schema mismatches)
-    let matchedId: string | null = null;
+    // Get the business by slug
+    business = await prisma.business.findFirst({
+      where: { slug: slug },
+      include: {
+        services: {
+          where: { isHidden: false },
+          include: {
+            categoryLinks: { include: { category: true } },
+            teamLinks: { include: { teamMember: true } },
+          },
+          orderBy: { name: "asc" },
+        },
+        teamMembers: { orderBy: { name: "asc" } },
+        openingHours: { orderBy: { dayOfWeek: "asc" } },
+        categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
+      },
+    });
+
+    // If no business found by slug, show 404
+    if (!business) {
+      notFound();
+    }
+
+    // Get slot size from raw MongoDB since Prisma client might not have it yet
     try {
       const raw = await (prisma as any).$runCommandRaw({
         find: 'Business',
-        filter: { slug },
+        filter: { _id: { $oid: business.id } },
         limit: 1,
       });
       const first = raw?.cursor?.firstBatch?.[0];
-      if (first && first._id) {
-        matchedId = (first._id.$oid ?? first._id)?.toString?.() ?? null;
-      }
-    } catch {}
-
-          if (matchedId) {
-        business = (await prisma.business.findFirst({
-          where: { id: matchedId },
-          include: {
-            services: {
-              where: { isHidden: false },
-              include: {
-                categoryLinks: { include: { category: true } },
-                teamLinks: { include: { teamMember: true } },
-              },
-              orderBy: { name: "asc" },
-            },
-            teamMembers: { orderBy: { name: "asc" } },
-            openingHours: { orderBy: { dayOfWeek: "asc" } },
-            categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
-            // slotSize is included by default in Prisma
-          },
-        })) as any;
-
-      // Get slot size from raw MongoDB since Prisma client might not have it yet
-      try {
-        const raw = await (prisma as any).$runCommandRaw({
-          find: 'Business',
-          filter: { _id: { $oid: matchedId } },
-          limit: 1,
-        });
-        const first = raw?.cursor?.firstBatch?.[0];
-        if (first?.slotSize) {
-          (business as any).slotSize = first.slotSize;
-          console.log('Layout: Found slot size from MongoDB:', first.slotSize);
-        } else {
-          (business as any).slotSize = { value: 30, unit: "minutes" };
-          console.log('Layout: Using default slot size:', (business as any).slotSize);
-        }
-      } catch (e) {
-        console.warn('Raw business read failed in layout:', e);
+      if (first?.slotSize) {
+        (business as any).slotSize = first.slotSize;
+        console.log('Layout: Found slot size from MongoDB:', first.slotSize);
+      } else {
         (business as any).slotSize = { value: 30, unit: "minutes" };
+        console.log('Layout: Using default slot size:', (business as any).slotSize);
       }
-    }
-
-    // Fallback by id (backwards compatibility)
-    if (!business) {
-      business = (await prisma.business.findFirst({
-        where: { id: slug },
-        include: {
-          services: {
-            where: { isHidden: false },
-            include: {
-              categoryLinks: { include: { category: true } },
-              teamLinks: { include: { teamMember: true } },
-            },
-            orderBy: { name: "asc" },
-          },
-          teamMembers: { orderBy: { name: "asc" } },
-          openingHours: { orderBy: { dayOfWeek: "asc" } },
-          categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
-          // slotSize is included by default in Prisma
-        },
-      })) as any;
-
-      // Get slot size from raw MongoDB since Prisma client might not have it yet
-      try {
-        const raw = await (prisma as any).$runCommandRaw({
-          find: 'Business',
-          filter: { _id: { $oid: slug } },
-          limit: 1,
-        });
-        const first = raw?.cursor?.firstBatch?.[0];
-        if (first?.slotSize) {
-          (business as any).slotSize = first.slotSize;
-          console.log('Layout fallback: Found slot size from MongoDB:', first.slotSize);
-        } else {
-          (business as any).slotSize = { value: 30, unit: "minutes" };
-          console.log('Layout fallback: Using default slot size:', (business as any).slotSize);
-        }
-      } catch (e) {
-        console.warn('Raw business read failed in layout fallback:', e);
-        (business as any).slotSize = { value: 30, unit: "minutes" };
-      }
-    }
-
-    // Fallback to first business (matches public page behavior)
-    if (!business) {
-      business = (await prisma.business.findFirst({
-        include: {
-          services: {
-            where: { isHidden: false },
-            include: {
-              categoryLinks: { include: { category: true } },
-              teamLinks: { include: { teamMember: true } },
-            },
-            orderBy: { name: "asc" },
-          },
-          teamMembers: { orderBy: { name: "asc" } },
-          openingHours: { orderBy: { dayOfWeek: "asc" } },
-          categories: { include: { serviceLinks: { include: { service: true } } }, orderBy: { name: "asc" } },
-        },
-      })) as any;
+    } catch (e) {
+      console.warn('Raw business read failed in layout:', e);
+      (business as any).slotSize = { value: 30, unit: "minutes" };
     }
   } catch (error) {
     console.error("Database connection error, using mock data:", error);
@@ -210,6 +139,14 @@ export default async function BookingLayout({
         },
         servicesByCategory,
       })}
+      
+      {/* Logo in Bottom Left Corner - Appears on all booking funnel pages */}
+      <div className="fixed bottom-6 left-6 z-40">
+        <a href="/" className="text-center hover:opacity-80 transition-opacity cursor-pointer">
+          <h1 className="text-2xl font-bold text-black leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Zeno</h1>
+          <h2 className="text-sm font-normal text-gray-600 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Scheduler</h2>
+        </a>
+      </div>
     </div>
   );
 } 

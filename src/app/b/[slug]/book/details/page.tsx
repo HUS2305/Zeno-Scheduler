@@ -12,40 +12,22 @@ export default async function DetailsPage({
   const { slug } = await params;
   const { serviceId, teamMemberId, date, time } = await searchParams;
   
-  console.log("Details page params:", { slug, serviceId, teamMemberId, date, time });
-
-  if (!serviceId || !date || !time) {
+    if (!serviceId || !date || !time) {
     console.error("Missing required parameters:", { serviceId, date, time });
     notFound();
   }
 
   let business;
   try {
-    // The [slug] parameter is actually the business ID, so just use it directly
+    // Get the business by slug
     business = await prisma.business.findFirst({
-      where: { id: slug },
-      select: {
-        id: true,
-        name: true,
-        profilePic: true,
-        theme: true,
-        brandColor: true,
+      where: { slug: slug },
+      include: {
         teamMembers: {
-          take: 1,
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+          orderBy: { name: "asc" }
         },
         services: {
-          where: { id: serviceId },
-          select: {
-            id: true,
-            name: true,
-            duration: true,
-            price: true,
-          },
+          where: { id: serviceId }
         },
       },
     });
@@ -59,14 +41,7 @@ export default async function DetailsPage({
     notFound();
   }
 
-  console.log("Business data:", {
-    id: business.id,
-    name: business.name,
-    teamCount: business.teamMembers.length,
-    servicesCount: business.services.length
-  });
-
-  const selectedService = business.services[0];
+    const selectedService = business.services[0];
   let selectedTeamMember = business.teamMembers[0];
 
   if (!selectedService) {

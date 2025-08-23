@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/nextauth";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 // GET - Fetch all bookings for the business
 export async function GET(request: NextRequest) {
@@ -47,7 +45,7 @@ export async function GET(request: NextRequest) {
     const bookings = await prisma.booking.findMany({
       where: whereClause,
       include: {
-        user: true,
+        customer: true, // ✅ Now using customer instead of user
         service: true,
         teamMember: true
       },
@@ -107,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate that the customer exists
-    const customer = await prisma.user.findUnique({
+    const customer = await prisma.customer.findUnique({
       where: { id: customerId }
     });
 
@@ -153,14 +151,16 @@ export async function POST(request: NextRequest) {
     // Create the booking
     const booking = await prisma.booking.create({
       data: {
-        userId: customerId,
+        customerId: customerId, // ✅ Now using customerId instead of userId
         serviceId: serviceId,
         teamMemberId: providerId || null,
         date: appointmentDate,
-        note: notes || null
+        startTime: appointmentDate, // ✅ Required field
+        endTime: new Date(appointmentDate.getTime() + service.duration * 60 * 1000), // ✅ Required field
+        customerNote: notes || null // ✅ Now using customerNote instead of note
       },
       include: {
-        user: true,
+        customer: true, // ✅ Now using customer instead of user
         service: true,
         teamMember: true
       }

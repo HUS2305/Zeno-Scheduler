@@ -72,7 +72,7 @@ export const authOptions: NextAuthOptions = {
 
           // Import bcryptjs dynamically to avoid issues
           const { compare } = await import("bcryptjs");
-          const isValid = await compare(credentials.password, user.hashedPassword);
+          const isValid = await compare(credentials.password as string, user.hashedPassword);
           
           if (!isValid) {
             return null;
@@ -94,15 +94,25 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      // For successful authentication, check if user needs setup
+      if (url.startsWith(baseUrl) && !url.includes("error")) {
+        // Let the dashboard layout handle the redirect logic
+        return `${baseUrl}/dashboard`;
+      }
+      // Allow redirects to relative URLs
+      else if (url.startsWith("/")) return `${baseUrl}${url}`;
+      return baseUrl;
+    },
     async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
+      if (user && user.id) {
+        token.id = user.id as string;
         
         // Get team member context and business info (with better error handling)
         try {
           const teamMember = await prisma.teamMember.findFirst({
             where: {
-              userId: user.id,
+              userId: user.id as string,
               status: 'ACTIVE',
             },
             include: {

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/nextauth";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 export async function PUT(request: NextRequest) {
   try {
@@ -13,9 +11,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, phone, company, country, address, city, state, zipCode } = await request.json();
+    const { 
+      name, 
+      phone
+    } = await request.json();
 
-    // Validate required fields
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json(
         { error: "Name is required" },
@@ -23,29 +23,25 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Update the user profile
+    // Update the user profile (only name is allowed in User model)
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
       data: {
         name: name.trim(),
-        phone: phone || null,
-        company: company || null,
-        country: country || null,
-        address: address || null,
-        city: city || null,
-        state: state || null,
-        zipCode: zipCode || null,
       },
     });
 
-    // Also update the corresponding team member name if it exists
+    // Update the corresponding team member with additional profile fields
     try {
       await prisma.teamMember.updateMany({
         where: { userId: session.user.id },
-        data: { name: name.trim() },
+        data: { 
+          name: name.trim(),
+          phone: phone || null,
+        },
       });
     } catch (error) {
-      console.warn('Could not update team member name:', error);
+      console.warn('Could not update team member profile:', error);
       // Don't fail the request if team member update fails
     }
 
@@ -55,13 +51,6 @@ export async function PUT(request: NextRequest) {
       id: updatedUser.id,
       name: updatedUser.name,
       email: updatedUser.email,
-      phone: updatedUser.phone,
-      company: updatedUser.company,
-      country: updatedUser.country,
-      address: updatedUser.address,
-      city: updatedUser.city,
-      state: updatedUser.state,
-      zipCode: updatedUser.zipCode,
     });
     
     // Clear any cached session data by setting cache control headers
@@ -93,13 +82,6 @@ export async function GET() {
         id: true,
         name: true,
         email: true,
-        phone: true,
-        company: true,
-        country: true,
-        address: true,
-        city: true,
-        state: true,
-        zipCode: true,
       },
     });
 

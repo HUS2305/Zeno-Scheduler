@@ -50,6 +50,7 @@ interface AppointmentModalProps {
   selectedTime: string;
   onAppointmentCreated: () => void;
   preSelectedCustomer?: string; // Customer ID to pre-select
+  timeFormat?: string;
 }
 
 export default function AppointmentModal({
@@ -59,6 +60,7 @@ export default function AppointmentModal({
   selectedTime,
   onAppointmentCreated,
   preSelectedCustomer,
+  timeFormat = "24",
 }: AppointmentModalProps) {
   
   const [services, setServices] = useState<Service[]>([]);
@@ -267,7 +269,7 @@ export default function AppointmentModal({
                   selectedTime={currentTime}
                   onDateChange={setCurrentDate}
                   onTimeChange={setCurrentTime}
-                  className="flex-1"
+                  timeFormat={timeFormat}
                 />
               </div>
 

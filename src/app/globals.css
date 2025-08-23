@@ -22,6 +22,12 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-poppins), Poppins, sans-serif;
+  scroll-behavior: smooth;
+}
+
+/* Smooth scrolling offset for sticky navigation */
+html {
+  scroll-padding-top: 100px;
 }
 
 /* Custom styles for react-phone-number-input */

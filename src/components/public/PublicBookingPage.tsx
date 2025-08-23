@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { ChevronDownIcon, ChevronUpIcon, ArrowRightIcon, CalendarIcon, ArrowUpIcon } from "@heroicons/react/24/outline";
+import Link from "next/link";
 import ServiceCard from "./ServiceCard";
 import TeamMemberCard from "./TeamMemberCard";
 import BookingSidebar from "./BookingSidebar";
@@ -11,7 +12,6 @@ interface Service {
   id: string;
   name: string;
   duration: number;
-  price: number | null;
   colorTheme: string;
   teamLinks: Array<{
     teamMember: {
@@ -51,6 +51,7 @@ interface Business {
   zipCode?: string | null;
   theme?: string | null;
   brandColor?: string | null;
+  timeFormat?: string; // Add timeFormat field
   services: Service[];
   teamMembers: TeamMember[];
   openingHours: OpeningHour[];
@@ -62,6 +63,11 @@ interface PublicBookingPageProps {
 }
 
 export default function PublicBookingPage({ business, servicesByCategory }: PublicBookingPageProps) {
+  // Debug logging
+  console.log('PublicBookingPage - business:', business);
+  console.log('PublicBookingPage - business.timeFormat:', business.timeFormat);
+  console.log('PublicBookingPage - business.slug:', business.slug);
+  
   const [activeTab, setActiveTab] = useState("Services");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -293,6 +299,16 @@ export default function PublicBookingPage({ business, servicesByCategory }: Publ
           <ArrowUpIcon className="h-5 w-5" />
         </button>
       )}
+
+      {/* Logo in Bottom Left Corner */}
+      <div className="fixed bottom-6 left-6 z-40">
+        <Link href="/">
+          <div className="text-center hover:opacity-80 transition-opacity cursor-pointer">
+            <h1 className={`text-2xl font-bold leading-none ${theme === 'dark' ? 'text-white' : 'text-black'}`} style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Zeno</h1>
+            <h2 className={`text-sm font-normal leading-none ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Scheduler</h2>
+          </div>
+        </Link>
+      </div>
     </div>
   );
 } 

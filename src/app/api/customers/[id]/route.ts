@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/nextauth";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 
-const prisma = new PrismaClient();
-
-// PUT - Update a customer (user)
+// PUT - Update a customer for the current business
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,6 +15,33 @@ export async function PUT(
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Get the business for the current user
+    const business = await prisma.business.findFirst({
+      where: { ownerId: session.user.id },
+    });
+
+    if (!business) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+
+    // Security logging
+    console.log(`[SECURITY] User ${session.user.id} (${session.user.email}) updating customer ${id} for business ${business.id} (${business.name})`);
+
+    // Verify that the customer actually belongs to this business
+    const customerExists = await prisma.customer.findFirst({
+      where: {
+        id: id,
+        businessId: business.id
+      }
+    });
+
+    if (!customerExists) {
+      console.log(`[SECURITY] Access denied: Customer ${id} does not belong to business ${business.id}`);
+      return NextResponse.json({ error: "Customer not found or does not belong to this business" }, { status: 404 });
+    }
+
+    console.log(`[SECURITY] Customer ${id} verified to belong to business ${business.id}, proceeding with update`);
 
     const { email, name, phone, company, country, address, city, state, zipCode } = await request.json();
 
@@ -38,27 +63,28 @@ export async function PUT(
         );
       }
 
-      // Check if user with this email already exists (excluding current user)
-      const existingUser = await prisma.user.findFirst({
-                where: {
+      // Check if customer with this email already exists in THIS BUSINESS (excluding current customer)
+      const existingCustomer = await prisma.customer.findFirst({
+        where: {
           email: email.trim(),
+          businessId: business.id,
           id: { not: id }
         }
       });
 
-      if (existingUser) {
+      if (existingCustomer) {
         return NextResponse.json(
-          { error: "User with this email already exists" },
+          { error: "Customer with this email already exists in your business" },
           { status: 400 }
         );
       }
     }
 
-    // Update user (customer)
-    const customer = await prisma.user.update({
+    // Update customer
+    const customer = await prisma.customer.update({
       where: { id: id },
       data: {
-        email: email?.trim() || null, // Use null if no email provided
+        email: email?.trim() || null,
         name: name.trim(),
         phone: phone?.trim() || null,
         company: company?.trim() || null,
@@ -80,7 +106,7 @@ export async function PUT(
   }
 }
 
-// DELETE - Delete a customer (user)
+// DELETE - Delete a customer from the current business
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -93,27 +119,47 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({
-      where: { id: id }
+    // Get the business for the current user
+    const business = await prisma.business.findFirst({
+      where: { ownerId: session.user.id },
     });
 
-    if (!existingUser) {
+    if (!business) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+
+    // Security logging
+    console.log(`[SECURITY] User ${session.user.id} (${session.user.email}) attempting to delete customer ${id} for business ${business.id} (${business.name})`);
+
+    // Verify that the customer actually belongs to this business
+    const existingCustomer = await prisma.customer.findFirst({
+      where: {
+        id: id,
+        businessId: business.id
+      }
+    });
+
+    if (!existingCustomer) {
+      console.log(`[SECURITY] Access denied: Customer ${id} does not belong to business ${business.id}`);
       return NextResponse.json(
-        { error: "Customer not found" },
+        { error: "Customer not found or does not belong to this business" },
         { status: 404 }
       );
     }
 
+    console.log(`[SECURITY] Customer ${id} verified to belong to business ${business.id}, proceeding with deletion`);
+
     // Use a transaction to ensure all operations succeed or fail together
     await prisma.$transaction(async (tx) => {
-      // First, delete all appointments (bookings) for this customer
+      // First, delete all appointments (bookings) for this customer from this business only
       await tx.booking.deleteMany({
-        where: { userId: id }
+        where: {
+          customerId: id
+        }
       });
 
-      // Then delete the user (customer)
-      await tx.user.delete({
+      // Then delete the customer
+      await tx.customer.delete({
         where: { id: id }
       });
     });

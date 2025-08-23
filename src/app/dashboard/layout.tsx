@@ -92,7 +92,7 @@ export default async function DashboardLayout({
 
   // If no business context found, redirect to setup
   if (!business) {
-    redirect("/dashboard/setup");
+    redirect("/setup");
   }
 
   return (

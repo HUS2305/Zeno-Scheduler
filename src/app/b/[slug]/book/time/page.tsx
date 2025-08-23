@@ -18,43 +18,22 @@ export default async function TimeSelectionPage({
 
   let business;
   try {
-    // The [slug] parameter is actually the business ID, so just use it directly
+    // Get the business by slug
     business = await prisma.business.findFirst({
-      where: { id: slug },
-      select: {
-        id: true,
-        name: true,
-        profilePic: true,
-        theme: true,
-        brandColor: true,
-        slotSize: true,
-        allowDoubleBooking: true,
+      where: { slug: slug },
+      include: {
         openingHours: {
-          select: {
-            dayOfWeek: true,
-            openTime: true,
-            closeTime: true,
-          },
+          orderBy: { dayOfWeek: "asc" }
         },
         teamMembers: {
-          take: 1,
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+          orderBy: { name: "asc" }
         },
         services: {
-          where: { id: serviceId },
-          select: {
-            id: true,
-            name: true,
-            duration: true,
-            price: true,
-          },
+          where: { id: serviceId }
         },
       },
     });
+    
   } catch (error) {
     console.error("Database connection error:", error);
     notFound();
@@ -80,6 +59,7 @@ export default async function TimeSelectionPage({
       teamMemberId={teamMemberId}
       selectedDate={selectedDate}
       selectedTime={selectedTime}
+      slug={slug}
     />
   );
 }

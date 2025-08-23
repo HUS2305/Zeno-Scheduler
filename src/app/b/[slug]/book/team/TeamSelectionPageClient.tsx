@@ -22,15 +22,14 @@ interface Business {
 interface Service {
   id: string;
   name: string;
-  price: number;
   duration: number;
 }
 
 interface TeamSelectionPageClientProps {
   business: Business;
-  serviceId: string;
   selectedService: Service;
-  slug: string;
+  serviceId: string;
+  slug: string; // Add slug parameter
 }
 
 export default function TeamSelectionPageClient({ business, serviceId, selectedService, slug }: TeamSelectionPageClientProps) {
@@ -45,13 +44,10 @@ export default function TeamSelectionPageClient({ business, serviceId, selectedS
     return `${mins} mins`;
   };
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return 'Free';
-    return `kr ${price}`;
-  };
+
 
   const handleTeamMemberSelect = (teamMember: TeamMember) => {
-    router.push(`/b/${business.id}/book/time?serviceId=${serviceId}&teamMemberId=${teamMember.id}`);
+    router.push(`/b/${slug}/book/time?serviceId=${serviceId}&teamMemberId=${teamMember.id}`);
   };
 
   // Apply theme and brand color
@@ -127,7 +123,7 @@ export default function TeamSelectionPageClient({ business, serviceId, selectedS
                 
                                  {/* Skip option */}
                  <div
-                   onClick={() => router.push(`/b/${business.id}/book/time?serviceId=${serviceId}`)}
+                   onClick={() => router.push(`/b/${slug}/book/time?serviceId=${serviceId}`)}
                    className={`${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 border-gray-600' : 'bg-gray-100 hover:bg-gray-200 border-gray-300'} rounded-lg p-3 cursor-pointer transition-colors border`}
                  >
                   <div className="text-center">
@@ -187,10 +183,7 @@ export default function TeamSelectionPageClient({ business, serviceId, selectedS
                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Date & Time</span>
                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Not selected</span>
                  </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Price</span>
-                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{formatPrice(selectedService.price)}</span>
-                </div>
+
               </div>
             </div>
           </div>

@@ -7,7 +7,6 @@ interface Service {
   id: string;
   name: string;
   duration: number;
-  price: number | null;
   colorTheme: string;
   teamLinks: Array<{
     teamMember: {
@@ -32,6 +31,9 @@ interface ServiceCardProps {
 
 export default function ServiceCard({ service, theme, brandColor, businessSlug, businessId, teamMembers }: ServiceCardProps) {
   const router = useRouter();
+  
+  // Debug: Log which context this ServiceCard is being used in
+  console.log('ServiceCard rendered with businessSlug:', businessSlug, 'service:', service.id);
 
   const formatDuration = (minutes: number) => {
     if (minutes < 60) {
@@ -45,26 +47,39 @@ export default function ServiceCard({ service, theme, brandColor, businessSlug, 
     return `${hours} hr ${remainingMinutes} mins`;
   };
 
-  const formatPrice = (price: number | null) => {
-    if (price === null || price === 0) {
-      return "Free";
-    }
-    return `$${price.toFixed(2)}`;
-  };
 
+
+  // This function is used when ServiceCard is used on the public page
+  // When used in the booking funnel, the parent component handles the click event
   const handleDirectBooking = () => {
-    if (!businessId) return;
+    // Use businessSlug if available, otherwise fall back to businessId
+    const businessIdentifier = businessSlug || businessId;
     
-    // Navigate directly to time selection, bypassing service selection
-    if (teamMembers && teamMembers.length === 1) {
-      // Skip team selection if only one member
-      router.push(`/b/${businessId}/book/time?serviceId=${service.id}&teamMemberId=${teamMembers[0].id}`);
-    } else if (teamMembers && teamMembers.length > 1) {
-      // Go to team selection if multiple members
-      router.push(`/b/${businessId}/book/team?serviceId=${service.id}`);
+    if (!businessIdentifier) {
+      console.log('No businessSlug or businessId, returning');
+      return;
+    }
+    
+    console.log('Using business identifier:', businessIdentifier);
+    
+    // Check if we have team members to determine the next step
+    if (teamMembers && teamMembers.length > 0) {
+      if (teamMembers.length === 1) {
+        // Skip team selection if only one member, go directly to time selection
+        const url = `/b/${businessIdentifier}/book/time?serviceId=${service.id}&teamMemberId=${teamMembers[0].id}`;
+        console.log('Navigating directly to time selection:', url);
+        router.push(url);
+      } else {
+        // Multiple team members, go to team selection
+        const url = `/b/${businessIdentifier}/book/team?serviceId=${service.id}`;
+        console.log('Navigating directly to team selection:', url);
+        router.push(url);
+      }
     } else {
-      // No team members - go directly to time selection
-      router.push(`/b/${businessId}/book/time?serviceId=${service.id}`);
+      // No team members, go to time selection
+      const url = `/b/${businessIdentifier}/book/time?serviceId=${service.id}`;
+      console.log('Navigating directly to time selection (no team members):', url);
+      router.push(url);
     }
   };
 
@@ -89,7 +104,7 @@ export default function ServiceCard({ service, theme, brandColor, businessSlug, 
           e.currentTarget.style.borderColor = brandColor;
         }
       }}
-      onClick={handleDirectBooking}
+      onClick={(businessSlug || businessId) ? handleDirectBooking : undefined}
       title="Click to book this service directly"
     >
       {/* Service Icon */}
@@ -109,7 +124,6 @@ export default function ServiceCard({ service, theme, brandColor, businessSlug, 
         <h3 className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{service.name}</h3>
         <div className={`flex items-center space-x-3 text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
           <span>{formatDuration(service.duration)}</span>
-          <span>{formatPrice(service.price)}</span>
         </div>
       </div>
 

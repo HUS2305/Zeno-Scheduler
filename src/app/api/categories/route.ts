@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/nextauth";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 export async function GET() {
   try {
@@ -132,10 +130,15 @@ export async function PUT(request: NextRequest) {
       data: { name: name.trim() },
     });
 
+    // Get the updated service count
+    const updatedServiceCount = await prisma.serviceCategory.count({
+      where: { categoryId: categoryId }
+    });
+
     return NextResponse.json({
       id: updatedCategory.id,
       name: updatedCategory.name,
-      serviceCount: existingCategory.serviceCount
+      serviceCount: updatedServiceCount
     });
   } catch (error) {
     console.error("Error updating category:", error);

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../../auth/nextauth";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
@@ -17,6 +15,27 @@ export async function GET(
     }
 
     const { id: customerId } = await params;
+
+    // Get the business for the current user
+    const business = await prisma.business.findFirst({
+      where: { ownerId: session.user.id },
+    });
+
+    if (!business) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+
+    // Verify that the customer belongs to this business
+    const customer = await prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        businessId: business.id
+      }
+    });
+
+    if (!customer) {
+      return NextResponse.json({ error: "Customer not found or does not belong to this business" }, { status: 404 });
+    }
 
     // Get today's date
     const today = new Date();
@@ -38,7 +57,7 @@ export async function GET(
     // Get customer's appointments
     const appointments = await prisma.booking.findMany({
       where: {
-        userId: customerId,
+        customerId: customerId,
       },
       include: {
         service: true,

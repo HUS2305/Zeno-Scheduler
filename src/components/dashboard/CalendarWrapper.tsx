@@ -14,7 +14,7 @@ interface Booking {
     price?: number;
     colorTheme?: string;
   };
-  user: {
+  customer: {
     id: string;
     name: string;
     email?: string;
@@ -24,13 +24,14 @@ interface Booking {
     id: string;
     name: string;
   };
-  note?: string;
+  customerNote?: string;
 }
 
 export default function CalendarWrapper({ userProfileName }: { userProfileName?: string }) {
   const [weekBookings, setWeekBookings] = useState<Booking[]>([]);
   const [bookingsByDay, setBookingsByDay] = useState<Record<string, Booking[]>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [business, setBusiness] = useState<any>(null);
   const today = new Date();
   
   // Profile updates are handled by the SettingsClient which forces a complete session refresh
@@ -87,8 +88,21 @@ export default function CalendarWrapper({ userProfileName }: { userProfileName?:
     }
   };
 
+  const fetchBusiness = async () => {
+    try {
+      const response = await fetch('/api/business');
+      if (response.ok) {
+        const businessData = await response.json();
+        setBusiness(businessData);
+      }
+    } catch (error) {
+      console.error("Error fetching business:", error);
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
+    fetchBusiness();
   }, [currentStartOfWeek, currentEndOfWeek]);
 
   const handleWeekChange = (startDate: Date, endDate: Date) => {
@@ -117,6 +131,7 @@ export default function CalendarWrapper({ userProfileName }: { userProfileName?:
       onWeekChange={handleWeekChange}
       onAppointmentCreated={fetchBookings}
       userProfileName={userProfileName}
+      timeFormat={business?.timeFormat || "24"}
     />
   );
 } 

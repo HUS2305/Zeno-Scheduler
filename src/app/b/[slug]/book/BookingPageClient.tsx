@@ -9,7 +9,6 @@ interface Service {
   id: string;
   name: string;
   duration: number;
-  price: number | null;
   colorTheme: string;
   teamLinks: Array<{
     teamMember: {
@@ -43,7 +42,14 @@ interface BookingPageClientProps {
 }
 
 export default function BookingPageClient({ business, servicesByCategory, slug }: BookingPageClientProps) {
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  // Initialize all categories as expanded by default
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    Object.keys(servicesByCategory).forEach(categoryName => {
+      initial[categoryName] = true; // All categories start expanded
+    });
+    return initial;
+  });
   const router = useRouter();
 
   const toggleCategory = (categoryName: string) => {
@@ -54,15 +60,25 @@ export default function BookingPageClient({ business, servicesByCategory, slug }
   };
 
   const handleServiceSelect = (service: Service) => {
+    console.log('handleServiceSelect called for service:', service.id);
+    console.log('business.teamMembers.length:', business.teamMembers.length);
+    console.log('slug:', slug);
+    
     // Navigate to team member selection or time selection based on team size
     if (business.teamMembers.length === 1) {
       // Skip team selection if only one member
-      router.push(`/b/${business.id}/book/time?serviceId=${service.id}&teamMemberId=${business.teamMembers[0].id}`);
+      const url = `/b/${slug}/book/time?serviceId=${service.id}&teamMemberId=${business.teamMembers[0].id}`;
+      console.log('Navigating to time selection:', url);
+      router.push(url);
     } else if (business.teamMembers.length > 1) {
-      router.push(`/b/${business.id}/book/team?serviceId=${service.id}`);
+      const url = `/b/${slug}/book/team?serviceId=${service.id}`;
+      console.log('Navigating to team selection:', url);
+      router.push(url);
     } else {
       // No team members - this shouldn't happen but handle it gracefully
-      router.push(`/b/${business.id}/book/time?serviceId=${service.id}`);
+      const url = `/b/${slug}/book/time?serviceId=${service.id}`;
+      console.log('Navigating to time selection (no team members):', url);
+      router.push(url);
     }
   };
 
@@ -175,10 +191,7 @@ export default function BookingPageClient({ business, servicesByCategory, slug }
                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Date & Time</span>
                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Not selected</span>
                  </div>
-                 <div className="flex justify-between items-center">
-                   <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>Price</span>
-                   <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Not selected</span>
-                 </div>
+
                </div>
              </div>
            </div>

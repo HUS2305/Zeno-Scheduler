@@ -1,12 +1,10 @@
 import { getServerSession } from "next-auth/next";
 import { redirect } from "next/navigation";
 import { authOptions } from "../api/auth/nextauth";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import Link from "next/link";
 import CalendarWrapper from "@/components/dashboard/CalendarWrapper";
 import DashboardStats from "@/components/dashboard/DashboardStats";
-
-const prisma = new PrismaClient();
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -40,7 +38,7 @@ export default async function DashboardPage() {
   endOfWeek.setDate(startOfWeek.getDate() + 6);
   endOfWeek.setHours(23, 59, 59, 999);
 
-  // Get this week's bookings for calendar
+  // Get this week's bookings for calendar using new secure schema
   const weekBookings = await prisma.booking.findMany({
     where: {
       service: {
@@ -53,7 +51,8 @@ export default async function DashboardPage() {
     },
     include: {
       service: true,
-      user: true,
+      customer: true, // ✅ Now using customer instead of user
+      teamMember: true,
     },
     orderBy: {
       date: "asc",

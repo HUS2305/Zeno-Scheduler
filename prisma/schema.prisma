@@ -7,7 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Enum for team member roles
+// ============================================================================
+// ENUMS
+// ============================================================================
+
 enum TeamMemberRole {
   STANDARD
   ENHANCED
@@ -15,7 +18,6 @@ enum TeamMemberRole {
   OWNER
 }
 
-// Enum for team member status
 enum TeamMemberStatus {
   PENDING
   ACTIVE
@@ -23,7 +25,6 @@ enum TeamMemberStatus {
   INVITED
 }
 
-// Enum for permission actions
 enum PermissionAction {
   // Calendar & Appointments
   VIEW_OWN_CALENDAR
@@ -63,70 +64,262 @@ enum PermissionAction {
   SYSTEM_CONFIGURATION
 }
 
-model User {
-  id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  email           String?
-  name            String?
-  phone           String?
-  company         String?
-  country         String?
-  address         String?
-  city            String?
-  state           String?
-  zipCode         String?
-  hashedPassword  String?
-  bookings        Booking[]
-  business        Business?  @relation("UserBusiness") // no fields/references here
-  createdAt       DateTime   @default(now())
-  
-  // New team member relationship
-  teamMemberships TeamMember[]
-  sentInvitations TeamInvitation[] @relation("InvitationSender")
-  auditActions   AuditLog[] @relation("AuditPerformer")
+enum BookingStatus {
+  CONFIRMED
+  PENDING
+  CANCELLED
+  COMPLETED
+  NO_SHOW
 }
 
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+  HIDDEN
+}
+
+// ============================================================================
+// AUTHENTICATION & BUSINESS OWNERSHIP
+// ============================================================================
+
+// User model for authentication only (business owners, team members with accounts)
+model User {
+  id              String     @id @default(auto()) @map("_id") @db.ObjectId
+  email           String     @unique // Must be unique for authentication
+  name            String?
+  hashedPassword  String?
+  
+  // Business ownership (one user can own one business)
+  ownedBusiness  Business?  @relation("BusinessOwner")
+  
+  // Team memberships (if user is part of other businesses)
+  teamMemberships TeamMember[]
+  
+  // Audit actions performed by this user
+  auditActions   AuditLog[] @relation("AuditPerformer")
+  
+  // Invitations sent by this user
+  sentInvitations TeamInvitation[] @relation("InvitationSender")
+  
+  // Timestamps
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  lastLoginAt     DateTime?
+  
+  // Email verification
+  emailVerified   Boolean    @default(false)
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+  
+  // Password reset
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  
+  // Account status
+  isActive        Boolean    @default(true)
+  isSuspended    Boolean    @default(false)
+  
+  @@map("users")
+}
+
+// ============================================================================
+// BUSINESS & CUSTOMER ISOLATION
+// ============================================================================
+
+// Business model - each business is completely isolated
 model Business {
   id           String     @id @default(auto()) @map("_id") @db.ObjectId
   name         String
+  slug         String?    @unique // Public booking page slug (e.g., "the-crew")
+  
+  // Business profile
   profilePic   String?
-  // Public booking page slug (e.g., "the-crew"). Used to form /b/[slug]
-  slug         String?
-  // Short marketing phrase shown on public page hero
   tagline      String?
-  // Industry classification and longer description
   industry     String?
   about        String?
+  
   // Contact information
   contactEmail String?
   contactPhone String?
+  
   // Location information
   country      String?
   address      String?
   city         String?
   state        String?
   zipCode      String?
+  
   // Appearance settings
   theme        String?    @default("light")
   brandColor   String?    @default("#000000")
-  // Booking slot configuration
+  
+  // Business preferences
+  timeFormat   String?    @default("24") // "12" or "24"
+  timezone     String?    @default("UTC")
   slotSize     Json?      // { value: number, unit: string }
-  // Double booking control for customers
-  allowDoubleBooking Boolean @default(true) // If false, customers cannot book overlapping time slots
+  allowDoubleBooking Boolean @default(true)
+  
+  // Business status
+  isActive     Boolean    @default(true)
+  isPublic     Boolean    @default(true) // Can customers book publicly?
+  
+  // Relationships
   ownerId      String     @unique @db.ObjectId
-  owner        User       @relation("UserBusiness", fields: [ownerId], references: [id])
+  owner        User       @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  // Business-specific data (completely isolated)
+  customers    Customer[]
   services     Service[]
   categories   Category[]
   teamMembers  TeamMember[]
   teamInvitations TeamInvitation[]
-  auditLogs   AuditLog[]
-  reviews      Review[]
   openingHours OpeningHour[]
+  reviews      Review[]
+  auditLogs   AuditLog[]
+  
+  // Timestamps
   createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  @@map("businesses")
 }
 
-// Enhanced TeamMember model with role-based access control
+// Customer model - each customer belongs to ONE business only
+model Customer {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Business relationship (REQUIRED - ensures isolation)
+  businessId    String     @db.ObjectId
+  business      Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Customer information
+  name          String
+  email         String?
+  phone         String?
+  company       String?
+  
+  // Address information
+  country       String?
+  address       String?
+  city          String?
+  state         String?
+  zipCode       String?
+  
+  // Customer preferences
+  notes         String?
+  tags          String[]   // For customer segmentation
+  
+  // Customer status
+  isActive      Boolean    @default(true)
+  
+  // Relationships
+  bookings      Booking[]
+  
+  // Timestamps
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  // Business-specific constraints
+  @@unique([businessId, email]) // Email unique per business
+  @@index([businessId, name])   // Index for efficient queries
+  @@map("customers")
+}
+
+// ============================================================================
+// SERVICES & CATEGORIES
+// ============================================================================
+
+// Service model - each service belongs to ONE business
+model Service {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Business relationship (REQUIRED - ensures isolation)
+  businessId    String        @db.ObjectId
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Service details
+  name          String
+  description   String?
+  duration      Int           // Duration in minutes
+  price         Int?          // Price in smallest currency unit (cents)
+  currency      String?       @default("USD")
+  
+  // Service settings
+  colorTheme    String?       @default("blue")
+  isHidden      Boolean       @default(false)
+  status        ServiceStatus @default(ACTIVE)
+  
+  // Booking settings
+  maxBookingsPerSlot Int?     // Maximum bookings per time slot
+  requiresConfirmation Boolean @default(false)
+  
+  // Relationships
+  bookings      Booking[]
+  teamLinks     ServiceTeamMember[]
+  categoryLinks ServiceCategory[]
+  
+  // Timestamps
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Business-specific constraints
+  @@unique([businessId, name]) // Service name unique per business
+  @@index([businessId, status]) // Index for efficient queries
+  @@map("services")
+}
+
+// Category model - each category belongs to ONE business
+model Category {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Business relationship (REQUIRED - ensures isolation)
+  businessId    String    @db.ObjectId
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Category details
+  name          String
+  description   String?
+  color         String?
+  icon          String?
+  
+  // Relationships
+  serviceLinks  ServiceCategory[]
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Business-specific constraints
+  @@unique([businessId, name]) // Category name unique per business
+  @@map("categories")
+}
+
+// Junction table for services and categories
+model ServiceCategory {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  serviceId    String    @db.ObjectId
+  categoryId   String    @db.ObjectId
+  
+  service      Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  category     Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  @@unique([serviceId, categoryId])
+  @@map("service_categories")
+}
+
+// ============================================================================
+// TEAM MANAGEMENT
+// ============================================================================
+
+// Team member model - each team member belongs to ONE business
 model TeamMember {
   id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Business relationship (REQUIRED - ensures isolation)
+  businessId    String           @db.ObjectId
+  business      Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Team member details
   name          String
   email         String           @unique // Email must be unique for invitations
   phone         String?
@@ -136,10 +329,6 @@ model TeamMember {
   // Role and status
   role          TeamMemberRole   @default(STANDARD)
   status        TeamMemberStatus @default(INVITED)
-  
-  // Business relationship
-  businessId    String           @db.ObjectId
-  business      Business         @relation(fields: [businessId], references: [id])
   
   // User account relationship (if team member has an account)
   userId        String?          @unique @db.ObjectId
@@ -163,7 +352,9 @@ model TeamMember {
   invitationToken String?        @unique
   invitationExpiresAt DateTime?
   
-  @@unique([businessId, email])
+  // Business-specific constraints
+  @@unique([businessId, email]) // Email unique per business
+  @@map("team_members")
 }
 
 // Junction table for team member permissions
@@ -175,130 +366,171 @@ model TeamMemberPermission {
   teamMember    TeamMember       @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
   
   @@unique([teamMemberId, action])
+  @@map("team_member_permissions")
 }
 
-// Team member invitations
-model TeamInvitation {
-  id            String           @id @default(auto()) @map("_id") @db.ObjectId
-  email         String
-  name          String
-  role          TeamMemberRole
-  businessId    String           @db.ObjectId
-  business      Business         @relation(fields: [businessId], references: [id])
-  
-  // Invitation details
-  token         String           @unique
-  expiresAt     DateTime
-  acceptedAt    DateTime?
-  acceptedBy    String?          @db.ObjectId // Team member who accepted
-  
-  // Metadata
-  invitedBy     String           @db.ObjectId // User who sent invitation
-  invitedByUser User             @relation("InvitationSender", fields: [invitedBy], references: [id])
-  message       String?          // Optional message from inviter
-  
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-}
-
-// Audit logging for security and compliance
-model AuditLog {
-  id            String           @id @default(auto()) @map("_id") @db.ObjectId
-  businessId    String           @db.ObjectId
-  business      Business         @relation(fields: [businessId], references: [id])
-  
-  // Action details
-  action        String           // What was done
-  resourceType  String           // Type of resource affected (User, Booking, etc.)
-  resourceId    String?          // ID of affected resource
-  oldValues     Json?            // Previous values
-  newValues     Json?            // New values
-  
-  // User context
-  performedBy   String           @db.ObjectId
-  performedByUser User           @relation("AuditPerformer", fields: [performedBy], references: [id])
-  
-  // Metadata
-  ipAddress     String?
-  userAgent     String?
-  timestamp     DateTime         @default(now())
-  
-  // Additional context
-  description   String?
-  metadata      Json?
-}
-
-model Service {
-  id            String              @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  duration      Int
-  price         Float?
-  colorTheme    String?             @default("blue")
-  isHidden      Boolean             @default(false)
-  businessId    String              @db.ObjectId
-  business      Business            @relation(fields: [businessId], references: [id])
-  bookings      Booking[]
-  teamLinks     ServiceTeamMember[] // <-- explicit relation
-  categoryLinks ServiceCategory[]   // <-- new relation for multiple categories
-}
-
+// Junction table for services and team members
 model ServiceTeamMember {
   id           String      @id @default(auto()) @map("_id") @db.ObjectId
   serviceId    String      @db.ObjectId
   teamMemberId String      @db.ObjectId
 
-  service      Service     @relation(fields: [serviceId], references: [id])
-  teamMember   TeamMember  @relation(fields: [teamMemberId], references: [id])
+  service      Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  teamMember   TeamMember  @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  
+  @@unique([serviceId, teamMemberId])
+  @@map("service_team_members")
 }
 
+// Team member invitations
+model TeamInvitation {
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Business relationship (REQUIRED - ensures isolation)
+  businessId    String           @db.ObjectId
+  business      Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Invitation details
+  email         String
+  name          String
+  role          TeamMemberRole
+  token         String           @unique
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  acceptedBy    String?          @db.ObjectId
+  
+  // Metadata
+  invitedBy     String           @db.ObjectId
+  invitedByUser User             @relation("InvitationSender", fields: [invitedBy], references: [id])
+  message       String?
+  
+  // Timestamps
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  
+  @@map("team_invitations")
+}
+
+// ============================================================================
+// BOOKINGS & APPOINTMENTS
+// ============================================================================
+
+// Booking model - each booking is tied to a specific business through service
 model Booking {
-  id            String       @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String       @db.ObjectId
-  user          User         @relation(fields: [userId], references: [id])
-  serviceId     String       @db.ObjectId
-  service       Service      @relation(fields: [serviceId], references: [id])
-  teamMemberId  String?      @db.ObjectId
-  teamMember    TeamMember?  @relation(fields: [teamMemberId], references: [id])
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Business relationship (through service - ensures isolation)
+  serviceId     String        @db.ObjectId
+  service       Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  // Customer relationship (business-specific customer)
+  customerId    String        @db.ObjectId
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  // Team member (optional)
+  teamMemberId  String?       @db.ObjectId
+  teamMember    TeamMember?   @relation(fields: [teamMemberId], references: [id])
+  
+  // Booking details
   date          DateTime
-  note          String?
-  createdAt     DateTime     @default(now())
+  startTime     DateTime      // Calculated from date + service duration
+  endTime       DateTime      // Calculated from date + service duration
+  status        BookingStatus @default(CONFIRMED)
+  
+  // Customer notes
+  customerNote  String?
+  internalNote  String?
+  
+  // Timestamps
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Business-specific constraints
+  @@index([serviceId, date]) // Index for efficient date queries
+  @@index([customerId, date]) // Index for customer booking history
+  @@map("bookings")
 }
 
-model Review {
-  id         String      @id @default(auto()) @map("_id") @db.ObjectId
-  rating     Int
-  comment    String?
-  businessId String      @db.ObjectId
-  business   Business    @relation(fields: [businessId], references: [id])
-  createdAt  DateTime    @default(now())
-}
+// ============================================================================
+// BUSINESS OPERATIONS
+// ============================================================================
 
+// Opening hours - each business has its own schedule
 model OpeningHour {
-  id         String      @id @default(auto()) @map("_id") @db.ObjectId
-  dayOfWeek  Int
-  openTime   String
-  closeTime  String
-  businessId String      @db.ObjectId
-  business   Business    @relation(fields: [businessId], references: [id])
-}
-
-model Category {
   id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  name       String
+  
+  // Business relationship (REQUIRED - ensures isolation)
   businessId String    @db.ObjectId
-  business   Business  @relation(fields: [businessId], references: [id])
-  serviceLinks ServiceCategory[] // <-- new relation for multiple services
-  createdAt  DateTime  @default(now())
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Schedule details
+  dayOfWeek  Int       // 0 = Sunday, 1 = Monday, etc.
+  openTime   String    // Format: "08:00"
+  closeTime  String    // Format: "17:00"
+  isClosed   Boolean   @default(false)
+  
+  // Break times (optional)
+  breaks     Json?     // Array of break periods
+  
+  @@unique([businessId, dayOfWeek])
+  @@map("opening_hours")
 }
 
-// New junction table for many-to-many relationship between services and categories
-model ServiceCategory {
+// Reviews - each review belongs to a specific business
+model Review {
   id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  serviceId  String    @db.ObjectId
-  categoryId String    @db.ObjectId
   
-  service    Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  // Business relationship (REQUIRED - ensures isolation)
+  businessId String    @db.ObjectId
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   
-  @@unique([serviceId, categoryId])
+  // Review details
+  rating     Int       // 1-5 stars
+  comment    String?
+  customerName String?
+  customerEmail String?
+  
+  // Review status
+  isApproved Boolean   @default(false)
+  isPublic   Boolean   @default(true)
+  
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  
+  @@map("reviews")
+}
+
+// ============================================================================
+// AUDIT & SECURITY
+// ============================================================================
+
+// Audit logging for security and compliance
+model AuditLog {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Business relationship (REQUIRED - ensures isolation)
+  businessId    String     @db.ObjectId
+  business      Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Action details
+  action        String     // What was done
+  resourceType  String     // Type of resource affected
+  resourceId    String?    // ID of affected resource
+  oldValues     Json?      // Previous values
+  newValues     Json?      // New values
+  
+  // User context
+  performedBy   String     @db.ObjectId
+  performedByUser User     @relation("AuditPerformer", fields: [performedBy], references: [id])
+  
+  // Metadata
+  ipAddress     String?
+  userAgent     String?
+  timestamp     DateTime   @default(now())
+  description   String?
+  metadata      Json?
+  
+  @@index([businessId, timestamp]) // Index for efficient audit queries
+  @@map("audit_logs")
 }
