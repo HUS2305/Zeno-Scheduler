@@ -214,28 +214,33 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
       </nav>
 
       {/* Bottom Section */}
-      <div className="p-3 border-t border-gray-200 space-y-3">
-        {/* Share Booking Page */}
-        {business.slug && !isCollapsed && (
-          <div className="bg-blue-50 rounded-lg p-2">
-            <div className="flex items-center space-x-2 text-xs text-blue-700">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-              </svg>
-              <span>Share your Booking Page</span>
-            </div>
-          </div>
+      <div className="p-3 border-t border-gray-200 space-y-6">
+        {/* Copy Booking Page URL */}
+        {business.slug && (
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/b/${business.slug}`;
+              navigator.clipboard.writeText(url);
+              // You could add a toast notification here
+            }}
+            className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-center space-x-2'} text-xs text-black hover:text-gray-700 cursor-pointer w-full transition-colors`}
+            title={isCollapsed ? "Copy Booking Page URL" : undefined}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            {!isCollapsed && <span>Copy Booking Page URL</span>}
+          </button>
         )}
-
 
 
         {/* Help & Support */}
         <button
           onClick={() => setShowHelpModal(true)}
-          className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-2'} text-xs text-gray-600 hover:text-gray-900 cursor-pointer w-full ${isCollapsed ? '' : 'text-left'}`}
+          className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-center space-x-2'} text-xs text-black hover:text-gray-700 cursor-pointer w-full transition-colors`}
           title={isCollapsed ? "Help & Support" : undefined}
         >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           {!isCollapsed && <span>Help & Support</span>}
