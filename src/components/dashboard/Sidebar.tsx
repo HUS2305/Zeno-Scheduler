@@ -94,6 +94,7 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   useEffect(() => {
     // Update display name when session changes
@@ -126,6 +127,11 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showProfileDropdown]);
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setShowMobileMenu(false);
+  }, [pathname]);
 
   const handleSignOut = async () => {
     try {
@@ -165,33 +171,31 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
     return roleNames[role] || role;
   };
 
-  return (
-    <div className={`${isCollapsed ? 'w-16' : 'w-56'} bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out`}>
+  // Mobile Menu Content Component
+  const MobileMenuContent = () => (
+    <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div>
-              <Link href="/dashboard" className="text-center hover:opacity-80 transition-opacity cursor-pointer">
-                <h1 className="text-2xl font-bold text-gray-900 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Zeno</h1>
-                <h2 className="text-sm font-normal text-gray-700 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Scheduler</h2>
-              </Link>
-            </div>
-          )}
+          <div>
+            <Link href="/dashboard" className="text-center hover:opacity-80 transition-opacity cursor-pointer">
+              <h1 className="text-2xl font-bold text-gray-900 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Zeno</h1>
+              <h2 className="text-sm font-normal text-gray-700 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Scheduler</h2>
+            </Link>
+          </div>
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-gray-600 hover:text-gray-900 p-1 rounded-lg hover:bg-gray-100 transition-colors"
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={() => setShowMobileMenu(false)}
+            className="text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isCollapsed ? "M13 5l7 7-7 7M5 5l7 7-7 7" : "M11 19l-7-7 7-7m8 14l-7-7 7-7"} />
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-2">
         {filteredNavigation.map((item) => {
           const isActive = pathname === item.href || 
             (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -199,22 +203,21 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-2'} px-2 py-1.5 rounded-lg text-sm transition-colors ${
+              className={`flex items-center space-x-3 px-3 py-3 rounded-lg text-base transition-colors ${
                 isActive
                   ? "bg-white text-black border border-black"
                   : "text-gray-700 hover:bg-gray-100"
               }`}
-              title={isCollapsed ? item.name : undefined}
             >
               {item.icon()}
-              {!isCollapsed && <span>{item.name}</span>}
+              <span>{item.name}</span>
             </Link>
           );
         })}
       </nav>
 
       {/* Bottom Section */}
-      <div className="p-3 border-t border-gray-200 space-y-6">
+      <div className="p-4 border-t border-gray-200 space-y-4">
         {/* Copy Booking Page URL */}
         {business.slug && (
           <button
@@ -223,86 +226,262 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
               navigator.clipboard.writeText(url);
               // You could add a toast notification here
             }}
-            className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-center space-x-2'} text-xs text-black hover:text-gray-700 cursor-pointer w-full transition-colors`}
-            title={isCollapsed ? "Copy Booking Page URL" : undefined}
+            className="flex items-center justify-center space-x-3 text-sm text-black hover:text-gray-700 cursor-pointer w-full transition-colors py-3 px-3 rounded-lg hover:bg-gray-100"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
-            {!isCollapsed && <span>Copy Booking Page URL</span>}
+            <span>Copy Booking Page URL</span>
           </button>
         )}
 
-
         {/* Help & Support */}
         <button
-          onClick={() => setShowHelpModal(true)}
-          className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-center space-x-2'} text-xs text-black hover:text-gray-700 cursor-pointer w-full transition-colors`}
-          title={isCollapsed ? "Help & Support" : undefined}
+          onClick={() => {
+            setShowHelpModal(true);
+            setShowMobileMenu(false);
+          }}
+          className="flex items-center justify-center space-x-3 text-sm text-black hover:text-gray-700 cursor-pointer w-full transition-colors py-3 px-3 rounded-lg hover:bg-gray-100"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          {!isCollapsed && <span>Help & Support</span>}
+          <span>Help & Support</span>
         </button>
 
         {/* User Profile */}
-        <div className="relative profile-dropdown-container">
-          <button
-            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-            className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'space-x-2'} pt-2 border-t border-gray-200 w-full text-left hover:bg-gray-50 rounded-lg p-2 transition-colors`}
-          >
-            <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
-              <span className="text-xs font-medium text-gray-700">
+        <div className="pt-4 border-t border-gray-200">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+              <span className="text-sm font-medium text-gray-700">
                 {displayName[0] || "U"}
               </span>
             </div>
-            {!isCollapsed && (
-              <>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-900 truncate">
-                    {displayName}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {teamMember ? getRoleDisplayName(teamMember.role) : 'Business Owner'}
-                  </p>
-                </div>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </>
-            )}
-          </button>
-
-          {/* Profile Dropdown */}
-          {showProfileDropdown && (
-            <div className={`absolute bottom-full left-0 ${isCollapsed ? 'w-40' : 'w-full'} bg-white border border-gray-200 rounded-lg shadow-lg mb-2 z-50`}>
-              <div className="py-1">
-                <Link
-                  href="/dashboard/settings"
-                  onClick={() => setShowProfileDropdown(false)}
-                  className="flex items-center px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <svg className="w-3 h-3 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Your Profile
-                </Link>
-                <button
-                  onClick={() => {
-                    setShowProfileDropdown(false);
-                    setShowSignOutModal(true);
-                  }}
-                  className="flex items-center w-full px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors group"
-                >
-                  <svg className="w-3 h-3 mr-2 text-gray-500 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  Sign Out
-                </button>
-              </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {displayName}
+              </p>
+              <p className="text-sm text-gray-500">
+                {teamMember ? getRoleDisplayName(teamMember.role) : 'Business Owner'}
+              </p>
             </div>
-          )}
+          </div>
+          
+          <div className="mt-3 space-y-2">
+            <Link
+              href="/dashboard/settings"
+              className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-lg"
+            >
+              <svg className="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              Your Profile
+            </Link>
+            <button
+              onClick={() => {
+                setShowSignOutModal(true);
+                setShowMobileMenu(false);
+              }}
+              className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors rounded-lg group"
+            >
+              <svg className="w-4 h-4 mr-3 text-gray-500 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+             {/* Mobile Header - Only visible on mobile */}
+       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200 h-16">
+         <div className="flex items-center justify-between px-4 py-3 h-full">
+           {/* Burger Menu Button */}
+           <button
+             onClick={() => setShowMobileMenu(true)}
+             className="text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+           >
+             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+             </svg>
+           </button>
+           
+           {/* Centered Logo */}
+           <div className="absolute left-1/2 transform -translate-x-1/2">
+             <Link href="/dashboard" className="text-center hover:opacity-80 transition-opacity cursor-pointer">
+               <h1 className="text-xl font-bold text-gray-900 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Zeno</h1>
+               <h2 className="text-xs font-normal text-gray-700 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Scheduler</h2>
+             </Link>
+           </div>
+           
+           {/* Spacer to balance the layout */}
+           <div className="w-10"></div>
+         </div>
+       </div>
+       
+               
+
+      {/* Mobile Menu Overlay */}
+      {showMobileMenu && (
+        <div className="lg:hidden fixed inset-0 z-50">
+                     {/* Backdrop */}
+           <div 
+             className="absolute inset-0 transition-opacity"
+             style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}
+             onClick={() => setShowMobileMenu(false)}
+           />
+          
+          {/* Menu Panel */}
+          <div className="absolute left-0 top-0 h-full w-80 bg-white shadow-xl transform transition-transform duration-300 ease-in-out">
+            <MobileMenuContent />
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Sidebar - Hidden on mobile */}
+      <div className="hidden lg:block">
+        <div className={`${isCollapsed ? 'w-16' : 'w-56'} bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out h-screen`}>
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              {!isCollapsed && (
+                <div>
+                  <Link href="/dashboard" className="text-center hover:opacity-80 transition-opacity cursor-pointer">
+                    <h1 className="text-2xl font-bold text-gray-900 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Zeno</h1>
+                    <h2 className="text-sm font-normal text-gray-700 leading-none" style={{ fontFamily: 'var(--font-racing-sans-one)' }}>Scheduler</h2>
+                  </Link>
+                </div>
+              )}
+              <button
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="text-gray-600 hover:text-gray-900 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isCollapsed ? "M13 5l7 7-7 7M5 5l7 7-7 7" : "M11 19l-7-7 7-7m8 14l-7-7 7-7"} />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 px-3 py-4 space-y-2">
+            {filteredNavigation.map((item) => {
+              const isActive = pathname === item.href || 
+                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-2'} px-2 py-1.5 rounded-lg text-sm transition-colors ${
+                    isActive
+                      ? "bg-white text-black border border-black"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                  title={isCollapsed ? item.name : undefined}
+                >
+                  {item.icon()}
+                  {!isCollapsed && <span>{item.name}</span>}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Bottom Section */}
+          <div className="p-4 border-t border-gray-200 space-y-6 mt-auto">
+            {/* Copy Booking Page URL */}
+            {business.slug && (
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/b/${business.slug}`;
+                  navigator.clipboard.writeText(url);
+                  // You could add a toast notification here
+                }}
+                className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-center space-x-2'} text-xs text-black hover:text-gray-700 cursor-pointer w-full transition-colors`}
+                title={isCollapsed ? "Copy Booking Page URL" : undefined}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                {!isCollapsed && <span>Copy Booking Page URL</span>}
+              </button>
+            )}
+
+            {/* Help & Support */}
+            <button
+              onClick={() => setShowHelpModal(true)}
+              className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-center space-x-2'} text-xs text-black hover:text-gray-700 cursor-pointer w-full transition-colors`}
+              title={isCollapsed ? "Help & Support" : undefined}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {!isCollapsed && <span>Help & Support</span>}
+            </button>
+
+            {/* User Profile */}
+            <div className="relative profile-dropdown-container">
+              <button
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'space-x-2'} pt-2 border-t border-gray-200 w-full text-left hover:bg-gray-50 rounded-lg p-2 transition-colors`}
+              >
+                <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
+                  <span className="text-xs font-medium text-gray-700">
+                    {displayName[0] || "U"}
+                  </span>
+                </div>
+                {!isCollapsed && (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-900 truncate">
+                        {displayName}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {teamMember ? getRoleDisplayName(teamMember.role) : 'Business Owner'}
+                      </p>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </>
+                )}
+              </button>
+
+              {/* Profile Dropdown */}
+              {showProfileDropdown && (
+                <div className={`absolute bottom-full left-0 ${isCollapsed ? 'w-40' : 'w-full'} bg-white border border-gray-200 rounded-lg shadow-lg mb-2 z-50`}>
+                  <div className="py-1">
+                    <Link
+                      href="/dashboard/settings"
+                      onClick={() => setShowProfileDropdown(false)}
+                      className="flex items-center px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg className="w-3 h-3 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Your Profile
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        setShowSignOutModal(true);
+                      }}
+                      className="flex items-center w-full px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors group"
+                    >
+                      <svg className="w-3 h-3 mr-2 text-gray-500 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -378,6 +557,6 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 } 

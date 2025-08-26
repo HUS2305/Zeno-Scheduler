@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import AppointmentModal from "./AppointmentModal";
 import AppointmentEditModal from "./AppointmentEditModal";
 import { formatTimeForDisplay } from "@/lib/time-utils";
+import MobileCalendar from "./MobileCalendar";
 
 // Color theme options
 const colorOptions = [
@@ -78,6 +79,8 @@ export default function InteractiveCalendar({
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedDateTime, setSelectedDateTime] = useState<{ date: Date; time: string } | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  
+
   
   // Ref for the calendar grid to enable auto-scrolling
   const calendarGridRef = useRef<HTMLDivElement>(null);
@@ -181,6 +184,8 @@ export default function InteractiveCalendar({
 
 
 
+
+
   const handleAppointmentCreated = () => {
     console.log("Appointment created, refreshing data...");
     onAppointmentCreated?.();
@@ -193,54 +198,35 @@ export default function InteractiveCalendar({
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-      {/* Modern Minimalistic Calendar Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-        {/* Left side - Profile section */}
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-            <span className="text-sm font-medium text-gray-600">H</span>
-          </div>
-          <span className="text-sm font-medium text-gray-900">{userProfileName || 'HEJ'}</span>
-        </div>
-
-        {/* Center - Week picker */}
-        <div className="flex items-center space-x-3">
-          <button 
-            onClick={handlePreviousWeek}
-            className="p-1.5 hover:bg-gray-50 rounded-md transition-colors"
-          >
-            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <span className="text-sm font-medium text-gray-700 min-w-[140px] text-center">
-            {startOfWeek.toLocaleDateString('en-US', { month: 'short' })} - {endOfWeek.toLocaleDateString('en-US', { month: 'short' })} {startOfWeek.getFullYear()}
-          </span>
-          <button 
-            onClick={handleNextWeek}
-            className="p-1.5 hover:bg-gray-50 rounded-md transition-colors"
-          >
-            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Right side - Book appointment button */}
-        <div className="flex items-center space-x-3">
-          <button 
-            onClick={() => setShowAppointmentModal(true)}
-            className="px-3 py-1.5 bg-black text-white rounded-xl text-xs font-medium hover:bg-gray-800 transition-colors"
-          >
-            Book appointment
-          </button>
-        </div>
-      </div>
+             {/* Desktop Week Picker Header - Only visible on desktop */}
+       <div className="hidden lg:flex items-center justify-center px-6 py-4 border-b border-gray-100">
+         <div className="flex items-center space-x-3">
+           <button 
+             onClick={handlePreviousWeek}
+             className="p-1.5 hover:bg-gray-50 rounded-md transition-colors"
+           >
+             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+             </svg>
+           </button>
+           <span className="text-sm font-medium text-gray-700 min-w-[140px] text-center">
+             {startOfWeek.toLocaleDateString('en-US', { month: 'short' })} - {endOfWeek.toLocaleDateString('en-US', { month: 'short' })} {startOfWeek.getFullYear()}
+           </span>
+           <button 
+             onClick={handleNextWeek}
+             className="p-1.5 hover:bg-gray-50 rounded-md transition-colors"
+           >
+             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+             </svg>
+           </button>
+         </div>
+       </div>
       
       <div className="overflow-x-auto">
         <div className="min-w-full">
-          {/* Calendar Header - Days */}
-          <div className="grid grid-cols-8 border-b border-gray-100">
+          {/* Calendar Header - Days (Desktop) */}
+          <div className="hidden lg:grid grid-cols-8 border-b border-gray-100">
             <div className="p-2 text-sm font-medium text-gray-500 text-center border-r border-gray-200 w-48"></div>
             {weekDays.map((day, dayIndex) => {
               const isToday = day.toDateString() === today.toDateString();
@@ -272,8 +258,10 @@ export default function InteractiveCalendar({
             })}
           </div>
 
-          {/* Main Calendar Grid */}
-          <div ref={calendarGridRef} className="grid grid-cols-8 relative h-[600px] overflow-y-auto">
+
+
+          {/* Main Calendar Grid (Desktop) */}
+          <div ref={calendarGridRef} className="hidden lg:grid grid-cols-8 relative h-[600px] overflow-y-auto">
             {/* Calendar Selector Column */}
             <div className="relative border-r border-gray-200 w-48">
               {/* Time labels positioned absolutely */}
@@ -297,9 +285,9 @@ export default function InteractiveCalendar({
               })}
             </div>
             
-                         {/* Day Columns */}
-             {weekDays.map((day, dayIndex) => (
-               <div key={day.toDateString()} className={`border-r border-gray-200 ${dayIndex === weekDays.length - 1 ? '' : ''} relative`}>
+            {/* Day Columns */}
+            {weekDays.map((day, dayIndex) => (
+              <div key={day.toDateString()} className={`border-r border-gray-200 ${dayIndex === weekDays.length - 1 ? '' : ''} relative`}>
                  {/* Render individual time slots for hover effects and click handling */}
                  {Array.from({ length: 96 }, (_, i) => {
                    const totalMinutes = i * 15;
@@ -495,6 +483,21 @@ export default function InteractiveCalendar({
                 <div className="h-px bg-black" style={{ width: 'calc(100% - 12rem)', marginLeft: '12rem' }}></div>
               </div>
             )}
+          </div>
+
+                     {/* Mobile Calendar */}
+           <div className="lg:hidden">
+             <MobileCalendar
+              startOfWeek={startOfWeek}
+              endOfWeek={endOfWeek}
+              today={today}
+              weekBookings={weekBookings}
+              bookingsByDay={bookingsByDay}
+              onWeekChange={onWeekChange}
+              onAppointmentCreated={onAppointmentCreated}
+              userProfileName={userProfileName}
+              timeFormat={timeFormat}
+            />
           </div>
         </div>
       </div>
