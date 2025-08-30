@@ -299,7 +299,28 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, slug, industry, about, tagline } = await request.json();
+    const { 
+      name, 
+      slug, 
+      industry, 
+      about, 
+      tagline, 
+      openingHours, 
+      slotSize, 
+      allowDoubleBooking, 
+      timeFormat,
+      theme,
+      brandColor,
+      isActive,
+      isPublic,
+      contactEmail,
+      contactPhone,
+      country,
+      address,
+      city,
+      state,
+      zipCode
+    } = await request.json();
 
     // Get the current user's business
     const business = await prisma.business.findFirst({
@@ -336,8 +357,42 @@ export async function PUT(request: NextRequest) {
         industry: industry?.trim(),
         about: about?.trim(),
         tagline: tagline?.trim(),
+        slotSize: slotSize,
+        allowDoubleBooking: allowDoubleBooking,
+        timeFormat: timeFormat,
+        theme: theme,
+        brandColor: brandColor,
+        isActive: isActive,
+        isPublic: isPublic,
+        contactEmail: contactEmail?.trim(),
+        contactPhone: contactPhone?.trim(),
+        country: country?.trim(),
+        address: address?.trim(),
+        city: city?.trim(),
+        state: state?.trim(),
+        zipCode: zipCode?.trim(),
       },
     });
+
+    // Update opening hours if provided
+    if (openingHours && Array.isArray(openingHours)) {
+      // Delete existing opening hours
+      await prisma.openingHour.deleteMany({
+        where: { businessId: business.id }
+      });
+
+      // Create new opening hours
+      if (openingHours.length > 0) {
+        await prisma.openingHour.createMany({
+          data: openingHours.map(hour => ({
+            businessId: business.id,
+            dayOfWeek: hour.dayOfWeek,
+            openTime: hour.openTime,
+            closeTime: hour.closeTime,
+          }))
+        });
+      }
+    }
 
     return NextResponse.json(updatedBusiness);
   } catch (error) {

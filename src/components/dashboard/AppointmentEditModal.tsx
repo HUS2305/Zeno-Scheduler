@@ -95,6 +95,14 @@ export default function AppointmentEditModal({
   const [currentDate, setCurrentDate] = useState(booking.date);
   const [currentTime, setCurrentTime] = useState(booking.time || "00:00");
 
+  // Debug function to log date changes
+  const handleDateChange = (date: Date) => {
+    console.log('AppointmentEditModal: handleDateChange called with:', date);
+    console.log('AppointmentEditModal: Original booking date was:', booking.date);
+    console.log('AppointmentEditModal: New date will be:', date);
+    setCurrentDate(date);
+  };
+
   // Dropdown states
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
@@ -162,9 +170,13 @@ export default function AppointmentEditModal({
       const appointmentData = {
         serviceId: selectedService,
         customerId: selectedCustomer,
-        date: currentDate,
+        date: currentDate.toISOString().split('T')[0], // Send date as YYYY-MM-DD string
         time: currentTime,
       };
+      
+      console.log('AppointmentEditModal: Sending appointment data:', appointmentData);
+      console.log('AppointmentEditModal: currentDate object:', currentDate);
+      console.log('AppointmentEditModal: currentDate.toISOString():', currentDate.toISOString());
 
       const response = await fetch(`/api/bookings/${booking.id}`, {
         method: "PUT",
@@ -315,13 +327,13 @@ export default function AppointmentEditModal({
               <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <DateTimePicker
-                selectedDate={currentDate}
-                selectedTime={currentTime}
-                onDateChange={setCurrentDate}
-                onTimeChange={setCurrentTime}
-                timeFormat={timeFormat}
-              />
+                             <DateTimePicker
+                 selectedDate={currentDate}
+                 selectedTime={currentTime}
+                 onDateChange={handleDateChange}
+                 onTimeChange={setCurrentTime}
+                 timeFormat={timeFormat}
+               />
             </div>
 
 

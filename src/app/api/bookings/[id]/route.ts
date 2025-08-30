@@ -27,7 +27,7 @@ export async function PUT(
     }
 
     const existingBooking = await prisma.booking.findFirst({
-      where: { id: params.id, service: { businessId: business.id } },
+      where: { id: id, service: { businessId: business.id } },
       include: { service: true, customer: true, teamMember: true }
     });
 
@@ -57,9 +57,18 @@ export async function PUT(
       }
     }
 
-    const [hours, minutes] = time.split(':').map(Number);
+    console.log('Received data:', { serviceId, customerId, providerId, date, time, notes });
+    
+    // Handle both colon and dot separators in time format
+    const timeSeparator = time.includes('.') ? '.' : ':';
+    const [hours, minutes] = time.split(timeSeparator).map(Number);
+    
+    console.log('Time parsing:', { time, timeSeparator, hours, minutes });
+    
     const appointmentDate = new Date(date);
     appointmentDate.setHours(hours, minutes, 0, 0);
+    
+    console.log('Parsed appointment date:', appointmentDate);
 
     // Remove conflict checking to allow overlapping appointments
     // const conflictingBooking = await prisma.booking.findFirst({
@@ -92,7 +101,10 @@ export async function PUT(
     return NextResponse.json(updatedBooking);
   } catch (error) {
     console.error("Error updating booking:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ 
+      error: "Internal server error", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 });
   }
 }
 

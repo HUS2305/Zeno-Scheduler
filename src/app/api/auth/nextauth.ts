@@ -1,6 +1,5 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "../../../lib/prisma";
 import type { JWT } from "next-auth/jwt";
@@ -42,14 +41,6 @@ declare module "next-auth/jwt" {
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? [
-          GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          }),
-        ]
-      : []),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -104,7 +95,8 @@ export const authOptions: NextAuthOptions = {
       else if (url.startsWith("/")) return `${baseUrl}${url}`;
       return baseUrl;
     },
-    async jwt({ token, user }) {
+
+    async jwt({ token, user, account }) {
       if (user && user.id) {
         token.id = user.id as string;
         

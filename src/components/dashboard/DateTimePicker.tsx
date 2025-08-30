@@ -25,6 +25,11 @@ export default function DateTimePicker({
   const calendarRef = useRef<HTMLDivElement>(null);
   const timePickerRef = useRef<HTMLDivElement>(null);
 
+  // Update currentMonth when selectedDate changes
+  useEffect(() => {
+    setCurrentMonth(new Date(selectedDate));
+  }, [selectedDate]);
+
   // Close calendar and time picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -88,8 +93,10 @@ export default function DateTimePicker({
   const calendarDays = generateCalendarDays();
 
   const handleDateSelect = (date: Date) => {
+    console.log('DateTimePicker: handleDateSelect called with date:', date);
     const newDate = new Date(date);
     newDate.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+    console.log('DateTimePicker: calling onDateChange with:', newDate);
     onDateChange(newDate);
     setShowCalendar(false);
   };
