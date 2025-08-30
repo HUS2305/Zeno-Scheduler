@@ -121,6 +121,9 @@ export default function CustomersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Mobile view state management
+  const [mobileView, setMobileView] = useState<"list" | "details">("list");
 
   // Check if form has been modified
   const hasChanges = () => {
@@ -381,6 +384,8 @@ export default function CustomersPage() {
         setCustomerDropdownOpen(null);
         setDetailViewDropdownOpen(false);
         setSelectedCustomer(null);
+        // Reset mobile view to list after deletion
+        setMobileView("list");
         fetchCustomers(); // Refresh the list
       } else {
         const error = await response.json();
@@ -466,6 +471,16 @@ export default function CustomersPage() {
     }
   };
 
+  // Mobile navigation functions
+  const handleCustomerSelect = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setMobileView("details");
+  };
+
+  const handleBackToList = () => {
+    setMobileView("list");
+  };
+
   // Filter customers based on search term
   const filteredCustomers = customers.filter(customer => {
     const searchLower = searchTerm.toLowerCase();
@@ -485,14 +500,23 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col lg:flex-row">
       {/* Left Panel - Customer List */}
-      <div className="w-1/4 border-r border-gray-200 bg-white">
+      <div className={`${mobileView === "list" ? "block" : "hidden lg:block"} w-full lg:w-1/4 border-r border-gray-200 bg-white`}>
         <div className="p-6">
                      <div className="mb-6">
              <div>
-               <h1 className="text-xl font-semibold text-gray-900">Customers</h1>
-               <p className="text-sm text-gray-600 mt-1">Manage your customer relationships and view booking history.</p>
+               {/* Mobile Header */}
+               <div className="lg:hidden mb-4">
+                 <h1 className="text-xl font-semibold text-gray-900">Customers</h1>
+                 <p className="text-sm text-gray-600 mt-1">Manage your customer relationships and view booking history.</p>
+               </div>
+               
+               {/* Desktop Header */}
+               <div className="hidden lg:block">
+                 <h1 className="text-xl font-semibold text-gray-900">Customers</h1>
+                 <p className="text-sm text-gray-600 mt-1">Manage your customer relationships and view booking history.</p>
+               </div>
              </div>
            </div>
 
@@ -563,7 +587,7 @@ export default function CustomersPage() {
                  >
                    <div 
                      className="flex-1 flex items-center space-x-2.5 cursor-pointer"
-                     onClick={() => setSelectedCustomer(customer)}
+                     onClick={() => handleCustomerSelect(customer)}
                    >
                      <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
                        <span className="text-xs font-medium text-gray-700">
@@ -598,7 +622,7 @@ export default function CustomersPage() {
                          <button
                            onClick={(e) => {
                              e.stopPropagation();
-                             setSelectedCustomer(customer);
+                             handleCustomerSelect(customer);
                              handleEditClick();
                              setCustomerDropdownOpen(null);
                            }}
@@ -612,7 +636,7 @@ export default function CustomersPage() {
                          <button
                            onClick={(e) => {
                              e.stopPropagation();
-                             setSelectedCustomer(customer);
+                             handleCustomerSelect(customer);
                              setShowDeleteModal(true);
                              setCustomerDropdownOpen(null);
                            }}
@@ -634,13 +658,23 @@ export default function CustomersPage() {
       </div>
 
       {/* Right Panel - Customer Details */}
-      <div className="flex-1 bg-gray-50">
+      <div className={`${mobileView === "details" ? "block" : "hidden lg:block"} flex-1 bg-gray-50`}>
         {selectedCustomer ? (
           <div className="h-full">
                          {/* Customer Header */}
              <div className="bg-white border-b border-gray-200 p-4">
                <div className="flex items-center justify-between">
                  <div className="flex items-center space-x-3">
+                   {/* Mobile Back Button */}
+                   <button
+                     onClick={handleBackToList}
+                     className="lg:hidden p-1.5 hover:bg-gray-100 rounded-md transition-colors mr-2"
+                   >
+                     <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                     </svg>
+                   </button>
+                   
                    <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center">
                      <span className="text-lg font-medium text-gray-700">
                        {(selectedCustomer.name || selectedCustomer.email).charAt(0).toUpperCase()}
