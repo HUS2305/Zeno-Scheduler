@@ -30,6 +30,16 @@ html {
   scroll-padding-top: 100px;
 }
 
+/* Hide scrollbar utility class */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
+}
+
 /* Custom styles for react-phone-number-input */
 .PhoneInput {
   display: flex;

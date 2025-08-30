@@ -43,6 +43,9 @@ export default function SettingsClient() {
   const [selectedBrandTab, setSelectedBrandTab] = useState("brand-details");
   const [expandedManageCategories, setExpandedManageCategories] = useState<string[]>([]);
   
+  // Mobile view state management
+  const [mobileView, setMobileView] = useState<"menu" | "content">("menu");
+  
   // Contact details state
   const [contactData, setContactData] = useState({
     email: "",
@@ -131,6 +134,17 @@ export default function SettingsClient() {
     timeFormat: "24",
   });
   const [hasTimeFormatChanges, setHasTimeFormatChanges] = useState(false);
+
+  // Password change state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [hasPasswordChanges, setHasPasswordChanges] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
 
   // Function to convert time between 12-hour and 24-hour formats
   const convertTimeFormat = (time: string, fromFormat: string, toFormat: string): string => {
@@ -412,7 +426,14 @@ export default function SettingsClient() {
       setShowSignOutModal(true);
     } else {
       setSelectedCategory(categoryId);
+      // Switch to content view on mobile when category is selected
+      setMobileView("content");
     }
+  };
+
+  // Mobile navigation functions
+  const handleBackToMenu = () => {
+    setMobileView("menu");
   };
 
   const handleSignOut = async () => {
@@ -558,6 +579,63 @@ export default function SettingsClient() {
 
   const handleCloseUnsavedModal = () => {
     setShowUnsavedChangesModal(false);
+  };
+
+  // Password change functions
+  const isPasswordFormValid = () => {
+    return (
+      passwordData.currentPassword.trim() !== "" &&
+      passwordData.newPassword.trim() !== "" &&
+      passwordData.confirmPassword.trim() !== "" &&
+      passwordData.newPassword.length >= 8 &&
+      passwordData.newPassword === passwordData.confirmPassword
+    );
+  };
+
+  const handleChangePassword = async () => {
+    if (!isPasswordFormValid()) {
+      return;
+    }
+
+    setPasswordError("");
+    setPasswordSuccess("");
+    setIsSavingPassword(true);
+
+    try {
+      const response = await fetch('/api/user/change-password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        }),
+      });
+
+      if (response.ok) {
+        setPasswordSuccess("Password changed successfully!");
+        setPasswordData({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+        setHasPasswordChanges(false);
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => {
+          setPasswordSuccess("");
+        }, 5000);
+      } else {
+        const errorData = await response.json();
+        setPasswordError(errorData.error || "Failed to change password");
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      setPasswordError("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   // Working hours save function
@@ -750,10 +828,19 @@ export default function SettingsClient() {
   };
 
   return (
-    <div className="flex h-full bg-white">
+    <div className="flex h-full bg-white flex-col lg:flex-row">
       {/* Middle Column - Settings Menu */}
-      <div className="w-56 bg-gray-50 border-r border-gray-200 p-3">
-        <h1 className="text-base font-semibold text-gray-900 mb-4">Settings</h1>
+      <div className={`${mobileView === "menu" ? "block" : "hidden lg:block"} w-full lg:w-56 bg-gray-50 border-r border-gray-200 p-3`}>
+        {/* Mobile Header */}
+        <div className="lg:hidden mb-4">
+          <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
+          <p className="text-sm text-gray-600 mt-1">Manage your account and business preferences.</p>
+        </div>
+        
+        {/* Desktop Header */}
+        <div className="hidden lg:block">
+          <h1 className="text-base font-semibold text-gray-900 mb-4">Settings</h1>
+        </div>
 
         {/* Main Categories */}
         <div className="space-y-0.5 mb-4">
@@ -801,7 +888,25 @@ export default function SettingsClient() {
       </div>
 
       {/* Right Column - Content Area */}
-      <div className="flex-1 p-4 pl-8 relative overflow-y-auto">
+      <div className={`${mobileView === "content" ? "block" : "hidden lg:block"} flex-1 p-4 pl-8 relative overflow-y-auto`}>
+        {/* Mobile Back Button */}
+        <div className="lg:hidden mb-4">
+          <button
+            onClick={handleBackToMenu}
+            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors mr-2"
+          >
+            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span className="text-sm font-medium text-gray-900">
+            {selectedCategory === "brand" ? "Your Brand" : 
+             selectedCategory === "profile" ? "Your Profile" : 
+             selectedCategory === "billing" ? "Billing" : 
+             selectedCategory === "security" ? "Security" : "Settings"}
+          </span>
+        </div>
+        
         {/* Profile section now has full form, no need for edit button */}
         
         {selectedCategory === "profile" && (
@@ -890,7 +995,7 @@ export default function SettingsClient() {
                       onClick={handleSaveProfile}
                       className={`w-1/3 px-4 py-2 rounded-md transition-colors text-sm font-medium ${
                         !hasProfileChanges || isSavingProfile
-                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          ? 'bg-gray-200 text-gray-800'
                           : 'bg-black text-white hover:bg-gray-800'
                       }`}
                     >
@@ -906,19 +1011,154 @@ export default function SettingsClient() {
           </div>
         )}
 
+        {/* Security Category */}
+        {selectedCategory === "security" && (
+          <div className="max-w-2xl">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Security Settings</h2>
+              <p className="text-sm text-gray-600">Manage your account security and password settings.</p>
+            </div>
+
+            {/* Password Change Section */}
+            <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+              <h4 className="text-base font-medium text-gray-900 mb-4">Change Password</h4>
+              
+              <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
+                {/* Current Password */}
+                <div>
+                  <label htmlFor="current-password" className="block text-xs text-gray-700 mb-1">
+                    Current Password *
+                  </label>
+                  <input
+                    type="password"
+                    id="current-password"
+                    value={passwordData.currentPassword}
+                    onChange={(e) => {
+                      setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }));
+                      setHasPasswordChanges(true);
+                    }}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                    placeholder="Enter your current password"
+                    required
+                  />
+                </div>
+
+                {/* New Password */}
+                <div>
+                  <label htmlFor="new-password" className="block text-xs text-gray-700 mb-1">
+                    New Password *
+                  </label>
+                  <input
+                    type="password"
+                    id="new-password"
+                    value={passwordData.newPassword}
+                    onChange={(e) => {
+                      setPasswordData(prev => ({ ...prev, newPassword: e.target.value }));
+                      setHasPasswordChanges(true);
+                    }}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                    placeholder="Enter your new password"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Password must be at least 8 characters long</p>
+                </div>
+
+                {/* Confirm New Password */}
+                <div>
+                  <label htmlFor="confirm-password" className="block text-xs text-gray-700 mb-1">
+                    Confirm New Password *
+                  </label>
+                  <input
+                    type="password"
+                    id="confirm-password"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => {
+                      setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }));
+                      setHasPasswordChanges(true);
+                    }}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                    placeholder="Confirm your new password"
+                    required
+                  />
+                </div>
+
+                {/* Error Display */}
+                {passwordError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-center">
+                      <svg className="w-3 h-3 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-xs text-red-700">{passwordError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Success Display */}
+                {passwordSuccess && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center">
+                      <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-xs text-green-700">{passwordSuccess}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Save Button */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    disabled={!hasPasswordChanges || isSavingPassword || !isPasswordFormValid()}
+                    onClick={handleChangePassword}
+                    className={`w-1/3 px-4 py-2 rounded-md transition-colors text-sm font-medium ${
+                      !hasPasswordChanges || isSavingPassword || !isPasswordFormValid()
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-black text-white hover:bg-gray-800'
+                    }`}
+                  >
+                    {isSavingPassword ? 'Changing Password...' : 'Change Password'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Security Information */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <h4 className="text-base font-medium text-gray-900 mb-3">Security Information</h4>
+              <div className="space-y-3 text-sm text-gray-600">
+                <div className="flex items-start">
+                  <svg className="w-4 h-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.0 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span>Your password is securely hashed and stored using industry-standard encryption.</span>
+                </div>
+                <div className="flex items-start">
+                  <svg className="w-4 h-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.0 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span>Changing your password will immediately log you out of all other devices for security.</span>
+                </div>
+                <div className="flex items-start">
+                  <svg className="w-4 h-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.0 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span>We recommend using a strong, unique password that you don't use elsewhere.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {selectedCategory !== "profile" && (
           <div className="max-w-xl">
             {/* Category Header */}
-            <div className="flex items-center mb-4">
-              <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-lg font-semibold text-gray-600 mr-3">
-                ⚙️
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-gray-900">
-                  {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1).replace('-', ' ')}
-                </h2>
-                <p className="text-xs text-gray-500">Configuration and settings</p>
-              </div>
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                {selectedCategory === 'brand' ? 'Brand' : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1).replace('-', ' ')}
+              </h2>
+              <p className="text-sm text-gray-500">Configuration and settings</p>
             </div>
 
             {/* Navigation Tabs */}
@@ -1266,18 +1506,147 @@ export default function SettingsClient() {
 
                      {/* Security Tab */}
                      {selectedBrandTab === 'security' && (
-                       <div className="space-y-4">
-                         <div className="text-center py-8">
+                       <div className="space-y-6">
+                         <div className="text-center py-6">
                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.0 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                              </svg>
                            </div>
-                           <h3 className="text-lg font-medium text-gray-900 mb-2">Security</h3>
+                           <h3 className="text-lg font-medium text-gray-900 mb-2">Security Settings</h3>
                            <p className="text-sm text-gray-500 max-w-md mx-auto">
-                             Manage your account security settings, two-factor authentication, 
-                             and review recent login activity.
+                             Manage your account security and password settings.
                            </p>
+                         </div>
+
+                         {/* Password Change Section */}
+                         <div className="bg-white border border-gray-200 rounded-lg p-6">
+                           <h4 className="text-base font-medium text-gray-900 mb-4">Change Password</h4>
+                           
+                           <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
+                             {/* Current Password */}
+                             <div>
+                               <label htmlFor="current-password" className="block text-xs text-gray-700 mb-1">
+                                 Current Password *
+                               </label>
+                               <input
+                                 type="password"
+                                 id="current-password"
+                                 value={passwordData.currentPassword}
+                                 onChange={(e) => {
+                                   setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }));
+                                   setHasPasswordChanges(true);
+                                 }}
+                                 className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                                 placeholder="Enter your current password"
+                                 required
+                               />
+                             </div>
+
+                             {/* New Password */}
+                             <div>
+                               <label htmlFor="new-password" className="block text-xs text-gray-700 mb-1">
+                                 New Password *
+                               </label>
+                               <input
+                                 type="password"
+                                 id="new-password"
+                                 value={passwordData.newPassword}
+                                 onChange={(e) => {
+                                   setPasswordData(prev => ({ ...prev, newPassword: e.target.value }));
+                                   setHasPasswordChanges(true);
+                                 }}
+                                 className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                                 placeholder="Enter your new password"
+                                 required
+                               />
+                               <p className="text-xs text-gray-500 mt-1">Password must be at least 8 characters long</p>
+                             </div>
+
+                             {/* Confirm New Password */}
+                             <div>
+                               <label htmlFor="confirm-password" className="block text-xs text-gray-700 mb-1">
+                                 Confirm New Password *
+                               </label>
+                               <input
+                                 type="password"
+                                 id="confirm-password"
+                                 value={passwordData.confirmPassword}
+                                 onChange={(e) => {
+                                   setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }));
+                                   setHasPasswordChanges(true);
+                                 }}
+                                 className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder-gray-400 text-xs text-gray-900"
+                                 placeholder="Confirm your new password"
+                                 required
+                               />
+                             </div>
+
+                             {/* Error Display */}
+                             {passwordError && (
+                               <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                                 <div className="flex items-center">
+                                   <svg className="w-3 h-3 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                   </svg>
+                                   <p className="text-xs text-red-700">{passwordError}</p>
+                                 </div>
+                               </div>
+                             )}
+
+                             {/* Success Display */}
+                             {passwordSuccess && (
+                               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                 <div className="flex items-center">
+                                   <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                   </svg>
+                                   <p className="text-xs text-green-700">{passwordSuccess}</p>
+                                 </div>
+                               </div>
+                             )}
+
+                             {/* Save Button */}
+                             <div className="pt-2">
+                               <button
+                                 type="button"
+                                 disabled={!hasPasswordChanges || isSavingPassword || !isPasswordFormValid()}
+                                 onClick={handleChangePassword}
+                                 className={`w-1/3 px-4 py-2 rounded-md transition-colors text-sm font-medium ${
+                                   !hasPasswordChanges || isSavingPassword || !isPasswordFormValid()
+                                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                     : 'bg-black text-white hover:bg-gray-800'
+                                 }`}
+                               >
+                                 {isSavingPassword ? 'Changing Password...' : 'Change Password'}
+                               </button>
+                             </div>
+                           </form>
+                         </div>
+
+                         {/* Security Information */}
+                         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                           <h4 className="text-base font-medium text-gray-900 mb-3">Security Information</h4>
+                           <div className="space-y-3 text-sm text-gray-600">
+                             <div className="flex items-start">
+                               <svg className="w-4 h-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.0 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                               </svg>
+                               <span>Your password is securely hashed and stored using industry-standard encryption.</span>
+                             </div>
+                             <div className="flex items-start">
+                               <svg className="w-4 h-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.0 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                               </svg>
+                               <span>Changing your password will immediately log you out of all other devices for security.</span>
+                             </div>
+                             <div className="flex items-start">
+                               <svg className="w-4 h-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.0 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                               </svg>
+                               <span>We recommend using a strong, unique password that you don't use elsewhere.</span>
+                             </div>
+                           </div>
                          </div>
                        </div>
                      )}

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "./api/auth/nextauth";
 import Link from "next/link";
 import MobileMenu from "@/components/MobileMenu";
+import HowItWorksMobile from "@/components/landing/HowItWorksMobile";
 import { 
   CalendarDaysIcon, 
   UserGroupIcon, 
@@ -113,7 +114,7 @@ export default async function Home() {
       </div>
 
       {/* Features Section */}
-      <div id="features" className="py-24 bg-white">
+      <div id="features" className="py-16 lg:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-2xl font-extrabold text-black sm:text-3xl">
@@ -124,7 +125,59 @@ export default async function Home() {
             </p>
           </div>
 
-          <div className="mt-20 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Mobile: Icons and Titles Only, 2 per row */}
+          <div className="mt-12 lg:mt-20 grid grid-cols-2 gap-6 sm:hidden">
+            {/* Feature 1 */}
+            <div className="text-center group">
+              <div className="flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mx-auto group-hover:bg-gray-200 transition-colors">
+                <CalendarDaysIcon className="h-6 w-6 text-black" />
+              </div>
+              <h3 className="mt-3 text-sm font-medium text-black">Smart Scheduling</h3>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="text-center group">
+              <div className="flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mx-auto group-hover:bg-gray-200 transition-colors">
+                <UserGroupIcon className="h-6 w-6 text-black" />
+              </div>
+              <h3 className="mt-3 text-sm font-medium text-black">Team Management</h3>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="text-center group">
+              <div className="flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mx-auto group-hover:bg-gray-200 transition-colors">
+                <ChartBarIcon className="h-6 w-6 text-black" />
+              </div>
+              <h3 className="mt-3 text-sm font-medium text-black">Analytics & Insights</h3>
+            </div>
+
+            {/* Feature 4 */}
+            <div className="text-center group">
+              <div className="flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mx-auto group-hover:bg-gray-200 transition-colors">
+                <ClockIcon className="h-6 w-6 text-black" />
+              </div>
+              <h3 className="mt-3 text-sm font-medium text-black">24/7 Booking</h3>
+            </div>
+
+            {/* Feature 5 */}
+            <div className="text-center group">
+              <div className="flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mx-auto group-hover:bg-gray-200 transition-colors">
+                <DevicePhoneMobileIcon className="h-6 w-6 text-black" />
+              </div>
+              <h3 className="mt-3 text-sm font-medium text-black">Mobile Optimized</h3>
+            </div>
+
+            {/* Feature 6 */}
+            <div className="text-center group">
+              <div className="flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mx-auto group-hover:bg-gray-200 transition-colors">
+                <ShieldCheckIcon className="h-6 w-6 text-black" />
+              </div>
+              <h3 className="mt-3 text-sm font-medium text-black">Reliable Platform</h3>
+            </div>
+          </div>
+
+          {/* Desktop: Full Features with Descriptions, 3 per row */}
+          <div className="hidden sm:grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 mt-12 lg:mt-20">
             {/* Feature 1 */}
             <div className="text-center group hover:transform hover:scale-105 transition-all duration-300">
               <div className="flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mx-auto group-hover:bg-gray-200 transition-colors">
@@ -204,8 +257,33 @@ export default async function Home() {
 
 
 
+
+
+      {/* CTA Section Before How It Works */}
+      <div className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-2xl font-extrabold text-black sm:text-3xl">
+              Ready to get started?
+            </h2>
+            <div className="mt-8">
+              <Link
+                href="/register"
+                className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-black hover:bg-gray-800 transition-colors shadow-lg hover:shadow-xl"
+              >
+                Start Free Trial
+                <ArrowRightIcon className="ml-2 h-5 w-5" />
+              </Link>
+            </div>
+            <div className="mt-4 text-sm text-gray-500">
+              7-day free trial • Cancel anytime • No credit card required
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* How It Works Section */}
-      <div id="how-it-works" className="py-24 bg-white">
+      <div id="how-it-works" className="py-16 lg:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-2xl font-extrabold text-black sm:text-3xl">
@@ -216,8 +294,12 @@ export default async function Home() {
             </p>
           </div>
 
-          <div className="mt-20">
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+          <div className="mt-12 lg:mt-20">
+            {/* Mobile: Horizontal Scrollable Steps */}
+            <HowItWorksMobile />
+
+            {/* Desktop: Grid Layout */}
+            <div className="hidden lg:grid grid-cols-1 gap-8 md:grid-cols-3">
               <div className="text-center">
                 <div className="flex items-center justify-center h-12 w-12 rounded-full bg-black text-white text-xl font-bold mx-auto">
                   1
@@ -253,7 +335,7 @@ export default async function Home() {
             </div>
             
             {/* Image Gallery Below Steps */}
-            <div className="mt-20">
+            <div className="mt-16 lg:mt-20">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                 {/* Left Column - Backend Interfaces */}
                 <div className="space-y-8">
