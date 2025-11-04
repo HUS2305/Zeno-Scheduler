@@ -1,6 +1,5 @@
-import { getServerSession } from "next-auth/next";
+import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { authOptions } from "../api/auth/nextauth";
 import Sidebar from "@/components/dashboard/Sidebar";
 import prisma from "@/lib/prisma";
 import { TeamMemberRole, PermissionAction } from "@prisma/client";
@@ -24,9 +23,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  const user = await currentUser();
 
-  if (!session) {
+  if (!user) {
     redirect("/login");
   }
 
@@ -34,56 +33,43 @@ export default async function DashboardLayout({
   let teamMember: TeamMemberContext | null = null;
   let business: any = null;
 
-  if (session.user?.id) {
+  if (user?.id) {
     try {
-      // First try to find team member by userId
-      const foundTeamMember = await prisma.teamMember.findFirst({
+      // Find business owned by this user
+      let foundBusiness = await prisma.business.findFirst({
         where: {
-          userId: session.user.id,
-          status: 'ACTIVE',
-        },
-        include: {
-          business: true,
-          permissions: true,
-        },
+          owner: {
+            clerkId: user.id
+          }
+        }
       });
 
-      if (foundTeamMember) {
+      // If no business found by clerkId, try to find by email (for existing users)
+      if (!foundBusiness) {
+        foundBusiness = await prisma.business.findFirst({
+          where: {
+            owner: {
+              email: user.emailAddresses[0].emailAddress
+            }
+          }
+        });
+      }
+
+      if (foundBusiness) {
+        business = foundBusiness;
+        // Create a virtual team member context for business owner
         teamMember = {
-          id: foundTeamMember.id,
-          role: foundTeamMember.role,
-          businessId: foundTeamMember.businessId,
-          status: foundTeamMember.status,
-          permissions: foundTeamMember.permissions.map(p => p.action),
+          id: 'owner',
+          role: 'OWNER' as TeamMemberRole,
+          businessId: foundBusiness.id,
+          status: 'ACTIVE',
+          permissions: [], // Owner has all permissions
           business: {
-            id: foundTeamMember.business.id,
-            name: foundTeamMember.business.name,
-            slug: foundTeamMember.business.slug,
+            id: foundBusiness.id,
+            name: foundBusiness.name,
+            slug: foundBusiness.slug,
           },
         };
-        business = foundTeamMember.business;
-      } else {
-        // If no team member found, check if user is a business owner
-        const foundBusiness = await prisma.business.findFirst({
-          where: { ownerId: session.user.id },
-        });
-
-        if (foundBusiness) {
-          business = foundBusiness;
-          // Create a virtual team member context for business owner
-          teamMember = {
-            id: 'owner',
-            role: 'OWNER' as TeamMemberRole,
-            businessId: foundBusiness.id,
-            status: 'ACTIVE',
-            permissions: [], // Owner has all permissions
-            business: {
-              id: foundBusiness.id,
-              name: foundBusiness.name,
-              slug: foundBusiness.slug,
-            },
-          };
-        }
       }
     } catch (error) {
       console.error("Error getting team member context:", error);

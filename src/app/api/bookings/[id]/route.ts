@@ -10,8 +10,8 @@ export async function PUT(
 ) {
   const { id } = await params;
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await currentUser();
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -21,7 +21,11 @@ export async function PUT(
       return NextResponse.json({ error: "Service, customer, date, and time are required" }, { status: 400 });
     }
 
-    const business = await prisma.business.findFirst({ where: { ownerId: session.user.id } });
+    const business = await prisma.business.findFirst({ where: { 
+        owner: {
+          clerkId: user.id
+        }
+      } });
     if (!business) {
       return NextResponse.json({ error: "Business not found" }, { status: 404 });
     }
@@ -115,12 +119,16 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await currentUser();
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const business = await prisma.business.findFirst({ where: { ownerId: session.user.id } });
+    const business = await prisma.business.findFirst({ where: { 
+        owner: {
+          clerkId: user.id
+        }
+      } });
     if (!business) {
       return NextResponse.json({ error: "Business not found" }, { status: 404 });
     }

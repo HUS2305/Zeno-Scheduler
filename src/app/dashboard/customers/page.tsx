@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -70,7 +70,7 @@ interface Appointment {
 }
 
 export default function CustomersPage() {
-  const { data: session, status } = useSession();
+  const { user, isLoaded } = useUser();
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,15 +154,15 @@ export default function CustomersPage() {
   };
 
   useEffect(() => {
-    if (status === "loading") return;
+    if (!isLoaded) return;
     
-    if (!session?.user?.id) {
+    if (!user?.id) {
       router.push("/login");
       return;
     }
 
     fetchCustomers();
-  }, [session, status, router]);
+  }, [user, isLoaded, router]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -489,7 +489,7 @@ export default function CustomersPage() {
     return nameMatch || emailMatch;
   });
 
-  if (status === "loading" || loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="p-4">
         <div className="flex items-center justify-center h-64">

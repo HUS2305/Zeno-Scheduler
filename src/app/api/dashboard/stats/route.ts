@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/nextauth";
+import { currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await currentUser();
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -18,12 +17,26 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify the business belongs to the current user
-    const business = await prisma.business.findFirst({
+    let business = await prisma.business.findFirst({
       where: { 
         id: businessId,
-        ownerId: session.user.id 
+        owner: {
+          clerkId: user.id
+        }
       },
     });
+
+    // If no business found by clerkId, try to find by email (for existing users)
+    if (!business) {
+      business = await prisma.business.findFirst({
+        where: { 
+          id: businessId,
+          owner: {
+            email: user.emailAddresses[0].emailAddress
+          }
+        },
+      });
+    }
 
     if (!business) {
       return NextResponse.json({ error: "Business not found" }, { status: 404 });

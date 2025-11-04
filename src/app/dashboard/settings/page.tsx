@@ -1,14 +1,13 @@
-import { getServerSession } from "next-auth/next";
+import { currentUser } from '@clerk/nextjs/server';
 import { redirect } from "next/navigation";
-import { authOptions } from "../../api/auth/nextauth";
-import SettingsClient from "./SettingsClient";
+import SettingsClientClerk from "./SettingsClientClerk";
 
 export default async function SettingsPage() {
-  const session = await getServerSession(authOptions);
+  const user = await currentUser();
 
-  if (!session?.user?.id) {
+  if (!user) {
     redirect("/login");
   }
 
-  return <SettingsClient />;
+  return <SettingsClientClerk />;
 } 

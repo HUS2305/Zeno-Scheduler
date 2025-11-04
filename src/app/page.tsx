@@ -1,6 +1,5 @@
-import { getServerSession } from "next-auth/next";
+import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { authOptions } from "./api/auth/nextauth";
 import Link from "next/link";
 import MobileMenu from "@/components/MobileMenu";
 import HowItWorksMobile from "@/components/landing/HowItWorksMobile";
@@ -18,9 +17,9 @@ import {
 } from "@heroicons/react/24/outline";
 
 export default async function Home() {
-  const session = await getServerSession(authOptions);
+  const user = await currentUser();
 
-  if (session) {
+  if (user) {
     redirect("/dashboard");
   }
 

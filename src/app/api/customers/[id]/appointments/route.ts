@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../../auth/nextauth";
+import { currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 export async function GET(
@@ -8,9 +7,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -18,7 +17,11 @@ export async function GET(
 
     // Get the business for the current user
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (!business) {

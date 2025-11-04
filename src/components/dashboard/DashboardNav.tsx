@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { useClerk } from "@clerk/nextjs";
 
 const navigation = [
   { name: "Overview", href: "/dashboard" },
@@ -12,12 +12,12 @@ const navigation = [
 
 export default function DashboardNav() {
   const pathname = usePathname();
+  const { signOut } = useClerk();
 
   const handleSignOut = async () => {
     try {
       await signOut({ 
-        callbackUrl: "/",
-        redirect: true 
+        redirectUrl: "/"
       });
     } catch (error) {
       console.error("Sign out error:", error);

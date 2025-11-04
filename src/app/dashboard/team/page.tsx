@@ -1,6 +1,5 @@
-import { getServerSession } from "next-auth/next";
+import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { authOptions } from "../../api/auth/nextauth";
 import TeamManagementClient from "./TeamManagementClient";
 
 // ============================================================================
@@ -193,9 +192,9 @@ export default async function TeamPage() {
 
 export default async function TeamPage() {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       redirect("/login");
     }
 
@@ -213,8 +212,8 @@ export default async function TeamPage() {
         </div>
 
         <TeamManagementClient 
-          userProfileName={session.user.name || 'HEJ'}
-          userEmail={session.user.email || 'hussainaljarrah45@gmail.com'}
+          userProfileName={user?.fullName || user?.emailAddresses[0]?.emailAddress || 'User'}
+          userEmail={user?.emailAddresses[0]?.emailAddress || 'user@example.com'}
         />
       </div>
     );

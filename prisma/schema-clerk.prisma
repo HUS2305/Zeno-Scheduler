@@ -85,7 +85,7 @@ enum ServiceStatus {
 // User model - now synced with Clerk
 model User {
   id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  clerkId         String?    @unique // Clerk user ID - primary identifier
+  clerkId         String     @unique // Clerk user ID - primary identifier
   
   // Basic info (synced from Clerk)
   email           String     @unique
@@ -127,7 +127,7 @@ model Business {
   slug         String?    @unique // Public booking page slug (e.g., "the-crew")
   
   // Clerk Organization ID (if using Clerk Organizations)
-  clerkOrganizationId String?
+  clerkOrganizationId String? @unique
   
   // Business profile
   profilePic   String?
@@ -317,7 +317,7 @@ model TeamMember {
   business      Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   
   // Clerk user relationship (if team member has a Clerk account)
-  clerkId       String?          // Clerk user ID
+  clerkId       String?          @unique // Clerk user ID
   userId        String?          @unique @db.ObjectId
   user          User?            @relation(fields: [userId], references: [id])
   

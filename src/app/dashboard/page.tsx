@@ -1,28 +1,45 @@
-import { getServerSession } from "next-auth/next";
+import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { authOptions } from "../api/auth/nextauth";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
 import CalendarWrapper from "@/components/dashboard/CalendarWrapper";
 import DashboardStats from "@/components/dashboard/DashboardStats";
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
+  const user = await currentUser();
 
-  if (!session?.user?.id) {
+  if (!user?.id) {
     redirect("/login");
   }
 
   // Get business data
-  const business = await prisma.business.findFirst({
-    where: { ownerId: session.user.id },
+  let business = await prisma.business.findFirst({
+    where: { 
+      owner: {
+        clerkId: user.id
+      }
+    },
     include: {
       services: true,
     },
   });
 
+  // If no business found by clerkId, try to find by email (for existing users)
   if (!business) {
-    redirect("/dashboard/setup");
+    business = await prisma.business.findFirst({
+      where: { 
+        owner: {
+          email: user.emailAddresses[0].emailAddress
+        }
+      },
+      include: {
+        services: true,
+      },
+    });
+  }
+
+  if (!business) {
+    redirect("/setup");
   }
 
   // Get today's date and week range
@@ -89,7 +106,7 @@ export default async function DashboardPage() {
 
       {/* Interactive Calendar */}
       <div className="flex-1 min-h-0">
-        <CalendarWrapper userProfileName={session.user.name || 'HEJ'} />
+        <CalendarWrapper userProfileName={user.fullName || user.emailAddresses[0]?.emailAddress || 'User'} />
       </div>
     </div>
   );

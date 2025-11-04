@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/nextauth";
+import { currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 // GET - Fetch customers for the current business
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get the business for the current user
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (!business) {
@@ -22,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Security logging
-    console.log(`[SECURITY] User ${session.user.id} (${session.user.email}) accessing customers for business ${business.id} (${business.name})`);
+    console.log(`[SECURITY] User ${user.id} (${user.emailAddresses[0].emailAddress}) accessing customers for business ${business.id} (${business.name})`);
 
     // Get customers for this business only (complete isolation)
     const customers = await prisma.customer.findMany({
@@ -59,15 +62,19 @@ export async function GET(request: NextRequest) {
 // POST - Create a new customer for the current business
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get the business for the current user
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (!business) {

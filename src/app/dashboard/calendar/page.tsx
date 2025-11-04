@@ -1,12 +1,11 @@
-import { getServerSession } from "next-auth/next";
+import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { authOptions } from "../../api/auth/nextauth";
 import CalendarWrapper from "../../../components/dashboard/CalendarWrapper";
 
 export default async function CalendarPage() {
-  const session = await getServerSession(authOptions);
+  const user = await currentUser();
 
-  if (!session?.user?.id) {
+  if (!user?.id) {
     redirect("/login");
   }
 

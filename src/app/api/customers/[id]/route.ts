@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/nextauth";
+import { currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 // PUT - Update a customer for the current business
@@ -10,15 +9,19 @@ export async function PUT(
 ) {
   const { id } = await params;
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get the business for the current user
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (!business) {
@@ -26,7 +29,7 @@ export async function PUT(
     }
 
     // Security logging
-    console.log(`[SECURITY] User ${session.user.id} (${session.user.email}) updating customer ${id} for business ${business.id} (${business.name})`);
+    console.log(`[SECURITY] User ${user.id} (${user.emailAddresses[0].emailAddress}) updating customer ${id} for business ${business.id} (${business.name})`);
 
     // Verify that the customer actually belongs to this business
     const customerExists = await prisma.customer.findFirst({
@@ -113,15 +116,19 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get the business for the current user
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (!business) {
@@ -129,7 +136,7 @@ export async function DELETE(
     }
 
     // Security logging
-    console.log(`[SECURITY] User ${session.user.id} (${session.user.email}) attempting to delete customer ${id} for business ${business.id} (${business.name})`);
+    console.log(`[SECURITY] User ${user.id} (${user.emailAddresses[0].emailAddress}) attempting to delete customer ${id} for business ${business.id} (${business.name})`);
 
     // Verify that the customer actually belongs to this business
     const existingCustomer = await prisma.customer.findFirst({

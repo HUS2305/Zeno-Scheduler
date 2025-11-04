@@ -79,18 +79,15 @@ enum ServiceStatus {
 }
 
 // ============================================================================
-// AUTHENTICATION & BUSINESS OWNERSHIP (UPDATED FOR CLERK)
+// AUTHENTICATION & BUSINESS OWNERSHIP
 // ============================================================================
 
-// User model - now synced with Clerk
+// User model for authentication only (business owners, team members with accounts)
 model User {
   id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  clerkId         String?    @unique // Clerk user ID - primary identifier
-  
-  // Basic info (synced from Clerk)
-  email           String     @unique
+  email           String     @unique // Must be unique for authentication
   name            String?
-  profileImageUrl String?
+  hashedPassword  String?
   
   // Business ownership (one user can own one business)
   ownedBusiness  Business?  @relation("BusinessOwner")
@@ -109,6 +106,15 @@ model User {
   updatedAt       DateTime   @updatedAt
   lastLoginAt     DateTime?
   
+  // Email verification
+  emailVerified   Boolean    @default(false)
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+  
+  // Password reset
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  
   // Account status
   isActive        Boolean    @default(true)
   isSuspended    Boolean    @default(false)
@@ -125,9 +131,6 @@ model Business {
   id           String     @id @default(auto()) @map("_id") @db.ObjectId
   name         String
   slug         String?    @unique // Public booking page slug (e.g., "the-crew")
-  
-  // Clerk Organization ID (if using Clerk Organizations)
-  clerkOrganizationId String?
   
   // Business profile
   profilePic   String?
@@ -305,7 +308,7 @@ model ServiceCategory {
 }
 
 // ============================================================================
-// TEAM MANAGEMENT (UPDATED FOR CLERK)
+// TEAM MANAGEMENT
 // ============================================================================
 
 // Team member model - each team member belongs to ONE business
@@ -315,11 +318,6 @@ model TeamMember {
   // Business relationship (REQUIRED - ensures isolation)
   businessId    String           @db.ObjectId
   business      Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  
-  // Clerk user relationship (if team member has a Clerk account)
-  clerkId       String?          // Clerk user ID
-  userId        String?          @unique @db.ObjectId
-  user          User?            @relation(fields: [userId], references: [id])
   
   // Team member details
   name          String
@@ -331,6 +329,10 @@ model TeamMember {
   // Role and status
   role          TeamMemberRole   @default(STANDARD)
   status        TeamMemberStatus @default(INVITED)
+  
+  // User account relationship (if team member has an account)
+  userId        String?          @unique @db.ObjectId
+  user          User?            @relation(fields: [userId], references: [id])
   
   // Permissions (many-to-many)
   permissions   TeamMemberPermission[]

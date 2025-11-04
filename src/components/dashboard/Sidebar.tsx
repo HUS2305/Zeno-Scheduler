@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import { TeamMemberRole, PermissionAction } from "@prisma/client";
 
@@ -88,8 +88,9 @@ const navigation = [
 
 export default function Sidebar({ teamMember, business }: SidebarProps) {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const [displayName, setDisplayName] = useState(session?.user?.name || session?.user?.email || "User");
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const [displayName, setDisplayName] = useState(user?.fullName || user?.emailAddresses[0]?.emailAddress || "User");
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -97,9 +98,11 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   useEffect(() => {
-    // Update display name when session changes
-    setDisplayName(session?.user?.name || session?.user?.email || "User");
-  }, [session?.user?.name, session?.user?.email]);
+    // Update display name when user changes
+    if (user) {
+      setDisplayName(user.fullName || user.emailAddresses[0]?.emailAddress || "User");
+    }
+  }, [user]);
 
   useEffect(() => {
     // Listen for profile update events
@@ -136,8 +139,7 @@ export default function Sidebar({ teamMember, business }: SidebarProps) {
   const handleSignOut = async () => {
     try {
       await signOut({ 
-        callbackUrl: "/",
-        redirect: true 
+        redirectUrl: "/"
       });
     } catch (error) {
       console.error("Sign out error:", error);

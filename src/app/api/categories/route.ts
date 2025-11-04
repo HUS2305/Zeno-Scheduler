@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/nextauth";
+import { currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await currentUser();
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get the business for the current user
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (!business) {
@@ -45,8 +48,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await currentUser();
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -58,7 +61,11 @@ export async function POST(request: NextRequest) {
 
     // Get the business for the current user
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (!business) {
@@ -86,8 +93,8 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await currentUser();
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -105,7 +112,11 @@ export async function PUT(request: NextRequest) {
 
     // Get the business for the current user
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (!business) {
@@ -148,8 +159,8 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await currentUser();
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -162,7 +173,11 @@ export async function DELETE(request: NextRequest) {
 
     // Get the business for the current user
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (!business) {

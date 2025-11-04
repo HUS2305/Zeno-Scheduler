@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/nextauth";
+import { currentUser } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name } = await request.json();
+    const { name, slug } = await request.json();
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json(
@@ -20,23 +19,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate a unique slug from the business name
-    const generateSlug = (businessName: string) => {
-      return businessName
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-        .replace(/\s+/g, '-') // Replace spaces with hyphens
-        .replace(/-+/g, '-') // Replace multiple hyphens with single
-        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
-    };
+    if (!slug || typeof slug !== "string" || slug.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Business URL is required" },
+        { status: 400 }
+      );
+    }
 
-    let slug = generateSlug(name);
+    // Ensure slug uniqueness
+    let finalSlug = slug.trim();
     let counter = 1;
     
-    // Ensure slug uniqueness
     while (true) {
       const existingBusinessWithSlug = await prisma.business.findFirst({
-        where: { slug: slug },
+        where: { slug: finalSlug },
       });
       
       if (!existingBusinessWithSlug) {
@@ -44,13 +40,17 @@ export async function POST(request: NextRequest) {
       }
       
       // If slug exists, append a number
-      slug = `${generateSlug(name)}-${counter}`;
+      finalSlug = `${slug.trim()}-${counter}`;
       counter++;
     }
 
     // Check if user already has a business
     const existingBusiness = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { 
+        owner: {
+          clerkId: user.id
+        }
+      },
     });
 
     if (existingBusiness) {
@@ -60,24 +60,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get or create user in database
+    let dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      // Check if user exists by email (for existing users)
+      const existingUser = await prisma.user.findUnique({
+        where: { email: user.emailAddresses[0].emailAddress },
+      });
+
+      if (existingUser) {
+        // Update existing user with clerkId
+        dbUser = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            clerkId: user.id,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || null,
+            profileImageUrl: user.imageUrl,
+          },
+        });
+      } else {
+        // Create new user
+        dbUser = await prisma.user.create({
+          data: {
+            clerkId: user.id,
+            email: user.emailAddresses[0].emailAddress,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || null,
+            profileImageUrl: user.imageUrl,
+          },
+        });
+      }
+    }
+
     // Create the business
     const business = await prisma.business.create({
       data: {
         name: name.trim(),
-        slug: slug,
-        ownerId: session.user.id,
+        slug: finalSlug,
+        ownerId: dbUser.id,
       },
     });
 
     // Create the owner as a team member so they appear as a service provider
     await prisma.teamMember.create({
       data: {
-        name: session.user.name || 'Business Owner',
-        email: session.user.email || '',
+        name: dbUser.name || 'Business Owner',
+        email: dbUser.email,
         role: 'OWNER',
         status: 'ACTIVE',
         businessId: business.id,
-        userId: session.user.id,
+        userId: dbUser.id,
+        clerkId: user.id,
         joinedAt: new Date(),
         invitationToken: `owner-${business.id}-${Date.now()}`, // Unique token for owner
       },
@@ -123,14 +158,48 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get or create user in database
+    let dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      // Check if user exists by email (for existing users)
+      const existingUser = await prisma.user.findUnique({
+        where: { email: user.emailAddresses[0].emailAddress },
+      });
+
+      if (existingUser) {
+        // Update existing user with clerkId
+        dbUser = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            clerkId: user.id,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || null,
+            profileImageUrl: user.imageUrl,
+          },
+        });
+      } else {
+        // Create new user
+        dbUser = await prisma.user.create({
+          data: {
+            clerkId: user.id,
+            email: user.emailAddresses[0].emailAddress,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || null,
+            profileImageUrl: user.imageUrl,
+          },
+        });
+      }
+    }
+
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { ownerId: dbUser.id },
       include: {
         openingHours: true,
         services: {
@@ -169,17 +238,18 @@ export async function GET() {
     }
 
     // Ensure the owner is always a team member
-    const ownerTeamMember = business.teamMembers.find(member => member.userId === session.user.id);
+    const ownerTeamMember = business.teamMembers.find(member => member.userId === dbUser.id);
     if (!ownerTeamMember) {
       // Create the owner as a team member if they don't exist
       await prisma.teamMember.create({
         data: {
-          name: session.user.name || 'Business Owner',
-          email: session.user.email || '',
+          name: dbUser.name || 'Business Owner',
+          email: dbUser.email,
           role: 'OWNER',
           status: 'ACTIVE',
           businessId: business.id,
-          userId: session.user.id,
+          userId: dbUser.id,
+          clerkId: user.id,
           joinedAt: new Date(),
           invitationToken: `owner-${business.id}-${Date.now()}-get`, // Unique token for owner in GET
         },
@@ -187,7 +257,7 @@ export async function GET() {
       
       // Refresh the business data to include the new team member
       const updatedBusiness = await prisma.business.findFirst({
-        where: { ownerId: session.user.id },
+        where: { ownerId: dbUser.id },
         include: {
           openingHours: true,
           services: {
@@ -242,7 +312,7 @@ export async function GET() {
 
       // Re-fetch business with the new opening hours
       const updatedBusiness = await prisma.business.findFirst({
-        where: { ownerId: session.user.id },
+        where: { ownerId: dbUser.id },
         include: {
           openingHours: true,
           services: {
@@ -293,10 +363,44 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get or create user in database
+    let dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      // Check if user exists by email (for existing users)
+      const existingUser = await prisma.user.findUnique({
+        where: { email: user.emailAddresses[0].emailAddress },
+      });
+
+      if (existingUser) {
+        // Update existing user with clerkId
+        dbUser = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            clerkId: user.id,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || null,
+            profileImageUrl: user.imageUrl,
+          },
+        });
+      } else {
+        // Create new user
+        dbUser = await prisma.user.create({
+          data: {
+            clerkId: user.id,
+            email: user.emailAddresses[0].emailAddress,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || null,
+            profileImageUrl: user.imageUrl,
+          },
+        });
+      }
     }
 
     const { 
@@ -324,7 +428,7 @@ export async function PUT(request: NextRequest) {
 
     // Get the current user's business
     const business = await prisma.business.findFirst({
-      where: { ownerId: session.user.id },
+      where: { ownerId: dbUser.id },
     });
 
     if (!business) {

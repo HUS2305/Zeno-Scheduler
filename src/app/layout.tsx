@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins, Racing_Sans_One } from "next/font/google";
 import "./globals.css";
-import SessionProvider from "../components/SessionProvider";
+import { ClerkProvider } from '@clerk/nextjs';
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -26,14 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${poppins.variable} ${racingSansOne.variable} antialiased`}
-      >
-        <SessionProvider>
-          {children}
-        </SessionProvider>
-      </body>
-    </html>
+                <ClerkProvider>
+              <html lang="en" suppressHydrationWarning>
+                <body
+                  className={`${poppins.variable} ${racingSansOne.variable} antialiased`}
+                  suppressHydrationWarning
+                >
+                  {children}
+                </body>
+              </html>
+            </ClerkProvider>
   );
 }
